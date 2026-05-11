@@ -422,6 +422,17 @@ namespace Ryujinx.HLE.HOS.Services.Am.AppletAE.AllSystemAppletProxiesService.Sys
             return ResultCode.Success;
         }
 
+        [CommandCmif(72)] // 9.0.0+
+        // SetInputDetectionPolicy(u32)
+        public ResultCode SetInputDetectionPolicy(ServiceCtx context)
+        {
+            uint inputDetectionPolicy = context.RequestData.ReadUInt32();
+
+            Logger.Stub?.PrintStub(LogClass.ServiceAm, new { inputDetectionPolicy });
+
+            return ResultCode.Success;
+        }
+
         [CommandCmif(80)] // 4.0.0+
         // SetWirelessPriorityMode(s32 wireless_priority_mode)
         public ResultCode SetWirelessPriorityMode(ServiceCtx context)

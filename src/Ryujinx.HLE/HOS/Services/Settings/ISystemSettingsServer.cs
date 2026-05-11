@@ -578,6 +578,249 @@ namespace Ryujinx.HLE.HOS.Services.Settings
             return ResultCode.Success;
         }
 
+        private int _errorReportSharePermission;
+
+        [CommandCmif(124)]
+        // GetErrorReportSharePermission() -> s32
+        public ResultCode GetErrorReportSharePermission(ServiceCtx context)
+        {
+            context.ResponseData.Write(_errorReportSharePermission);
+
+            Logger.Stub?.PrintStub(LogClass.ServiceSet);
+
+            return ResultCode.Success;
+        }
+
+        [CommandCmif(120)] // 3.0.0+
+        // GetPushNotificationActivityModeOnSleep() -> u32
+        public ResultCode GetPushNotificationActivityModeOnSleep(ServiceCtx context)
+        {
+            context.ResponseData.Write(0u);
+
+            Logger.Stub?.PrintStub(LogClass.ServiceSet);
+
+            return ResultCode.Success;
+        }
+
+        [CommandCmif(121)] // 3.0.0+
+        // SetPushNotificationActivityModeOnSleep(u32)
+        public ResultCode SetPushNotificationActivityModeOnSleep(ServiceCtx context)
+        {
+            uint mode = context.RequestData.ReadUInt32();
+
+            Logger.Stub?.PrintStub(LogClass.ServiceSet, $"PushNotificationActivityModeOnSleep: {mode}");
+
+            return ResultCode.Success;
+        }
+
+        [CommandCmif(125)]
+        // SetErrorReportSharePermission(s32)
+        public ResultCode SetErrorReportSharePermission(ServiceCtx context)
+        {
+            _errorReportSharePermission = context.RequestData.ReadInt32();
+
+            Logger.Stub?.PrintStub(LogClass.ServiceSet, $"ErrorReportSharePermission: {_errorReportSharePermission}");
+
+            return ResultCode.Success;
+        }
+
+        [CommandCmif(149)] // 5.0.0+
+        // GetRebootlessSystemUpdateVersion() -> u32
+        public ResultCode GetRebootlessSystemUpdateVersion(ServiceCtx context)
+        {
+            context.ResponseData.Write(0u);
+
+            Logger.Stub?.PrintStub(LogClass.ServiceSet);
+
+            return ResultCode.Success;
+        }
+
+        [CommandCmif(150)] // 5.0.0+
+        // GetDeviceTimeZoneLocationUpdatedTime() -> nn::time::SteadyClockTimePoint
+        public ResultCode GetDeviceTimeZoneLocationUpdatedTime(ServiceCtx context)
+        {
+            context.ResponseData.WriteStruct(new Time.Clock.SteadyClockTimePoint());
+
+            Logger.Stub?.PrintStub(LogClass.ServiceSet);
+
+            return ResultCode.Success;
+        }
+
+        [CommandCmif(185)] // 9.0.0+
+        // GetHomeMenuSchemeModel() -> u32
+        public ResultCode GetHomeMenuSchemeModel(ServiceCtx context)
+        {
+            context.ResponseData.Write(0u);
+
+            Logger.Stub?.PrintStub(LogClass.ServiceSet);
+
+            return ResultCode.Success;
+        }
+
+        [CommandCmif(186)] // 9.0.0+
+        // GetMemoryUsageRateFlag() -> bool
+        public ResultCode GetMemoryUsageRateFlag(ServiceCtx context)
+        {
+            context.ResponseData.Write(false);
+
+            Logger.Stub?.PrintStub(LogClass.ServiceSet);
+
+            return ResultCode.Success;
+        }
+
+        private uint _appletLaunchFlags;
+
+        [CommandCmif(126)]
+        // GetAppletLaunchFlags() -> u32
+        public ResultCode GetAppletLaunchFlags(ServiceCtx context)
+        {
+            context.ResponseData.Write(_appletLaunchFlags);
+
+            Logger.Stub?.PrintStub(LogClass.ServiceSet);
+
+            return ResultCode.Success;
+        }
+
+        [CommandCmif(127)]
+        // SetAppletLaunchFlags(u32)
+        public ResultCode SetAppletLaunchFlags(ServiceCtx context)
+        {
+            _appletLaunchFlags = context.RequestData.ReadUInt32();
+
+            Logger.Stub?.PrintStub(LogClass.ServiceSet, $"AppletLaunchFlags: {_appletLaunchFlags}");
+
+            return ResultCode.Success;
+        }
+
+        [CommandCmif(136)]
+        // GetKeyboardLayout() -> s32
+        public ResultCode GetKeyboardLayout(ServiceCtx context)
+        {
+            context.ResponseData.Write((int)context.Device.System.State.DesiredKeyboardLayout);
+
+            return ResultCode.Success;
+        }
+
+        [CommandCmif(137)]
+        // SetKeyboardLayout(s32)
+        public ResultCode SetKeyboardLayout(ServiceCtx context)
+        {
+            int keyboardLayout = context.RequestData.ReadInt32();
+
+            context.Device.System.State.SetKeyboardLayout(keyboardLayout);
+
+            return ResultCode.Success;
+        }
+
+        private int _chineseTraditionalInputMethod;
+
+        [CommandCmif(170)]
+        // GetChineseTraditionalInputMethod() -> s32
+        public ResultCode GetChineseTraditionalInputMethod(ServiceCtx context)
+        {
+            context.ResponseData.Write(_chineseTraditionalInputMethod);
+
+            Logger.Stub?.PrintStub(LogClass.ServiceSet);
+
+            return ResultCode.Success;
+        }
+
+        [CommandCmif(171)]
+        // SetChineseTraditionalInputMethod(s32)
+        public ResultCode SetChineseTraditionalInputMethod(ServiceCtx context)
+        {
+            _chineseTraditionalInputMethod = context.RequestData.ReadInt32();
+
+            Logger.Stub?.PrintStub(LogClass.ServiceSet, $"ChineseTraditionalInputMethod: {_chineseTraditionalInputMethod}");
+
+            return ResultCode.Success;
+        }
+
+        [CommandCmif(174)]
+        // GetHomeMenuScheme() -> HomeMenuScheme
+        public ResultCode GetHomeMenuScheme(ServiceCtx context)
+        {
+            context.ResponseData.Write(0u); // Main
+            context.ResponseData.Write(0u); // Back
+            context.ResponseData.Write(0u); // Sub
+            context.ResponseData.Write(0u); // Bezel
+            context.ResponseData.Write(0u); // Extra
+
+            Logger.Stub?.PrintStub(LogClass.ServiceSet);
+
+            return ResultCode.Success;
+        }
+
+        [CommandCmif(175)]
+        // GetThemeSettings() -> ThemeSettings
+        public ResultCode GetThemeSettings(ServiceCtx context)
+        {
+            context.ResponseData.Write(0u); // ThemeId
+            context.ResponseData.Write(0u); // ColorVariation
+
+            Logger.Stub?.PrintStub(LogClass.ServiceSet);
+
+            return ResultCode.Success;
+        }
+
+        [CommandCmif(176)]
+        // SetThemeSettings(ThemeSettings)
+        public ResultCode SetThemeSettings(ServiceCtx context)
+        {
+            uint themeId = context.RequestData.ReadUInt32();
+            uint colorVariation = context.RequestData.ReadUInt32();
+
+            Logger.Stub?.PrintStub(LogClass.ServiceSet, $"ThemeSettings: ThemeId={themeId}, ColorVariation={colorVariation}");
+
+            return ResultCode.Success;
+        }
+
+        private bool _fieldTestingFlag;
+
+        [CommandCmif(201)]
+        // GetFieldTestingFlag() -> bool
+        public ResultCode GetFieldTestingFlag(ServiceCtx context)
+        {
+            context.ResponseData.Write(_fieldTestingFlag);
+
+            Logger.Stub?.PrintStub(LogClass.ServiceSet);
+
+            return ResultCode.Success;
+        }
+
+        [CommandCmif(202)]
+        // SetFieldTestingFlag(bool)
+        public ResultCode SetFieldTestingFlag(ServiceCtx context)
+        {
+            _fieldTestingFlag = context.RequestData.ReadBoolean();
+
+            Logger.Stub?.PrintStub(LogClass.ServiceSet, $"FieldTestingFlag: {_fieldTestingFlag}");
+
+            return ResultCode.Success;
+        }
+
+        [CommandCmif(203)] // 11.0.0+
+        // GetPanelCrcMode() -> u32
+        public ResultCode GetPanelCrcMode(ServiceCtx context)
+        {
+            context.ResponseData.Write(0u);
+
+            Logger.Stub?.PrintStub(LogClass.ServiceSet);
+
+            return ResultCode.Success;
+        }
+
+        [CommandCmif(204)] // 11.0.0+
+        // SetPanelCrcMode(u32)
+        public ResultCode SetPanelCrcMode(ServiceCtx context)
+        {
+            uint mode = context.RequestData.ReadUInt32();
+
+            Logger.Stub?.PrintStub(LogClass.ServiceSet, $"PanelCrcMode: {mode}");
+
+            return ResultCode.Success;
+        }
+
         public byte[] GetFirmwareData(Switch device)
         {
             const ulong SystemVersionTitleId = 0x0100000000000809;

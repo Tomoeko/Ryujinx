@@ -25,6 +25,17 @@ namespace Ryujinx.HLE.HOS.Services.Am.AppletAE.AllSystemAppletProxiesService.Sys
             return ResultCode.Success;
         }
 
+        [CommandCmif(2)] // 6.0.0+
+        // GetAppletResourceUserIdOfCallerApplet() -> nn::applet::AppletResourceUserId
+        public ResultCode GetAppletResourceUserIdOfCallerApplet(ServiceCtx context)
+        {
+            context.ResponseData.Write(0uL);
+
+            Logger.Stub?.PrintStub(LogClass.ServiceAm);
+
+            return ResultCode.Success;
+        }
+
         [CommandCmif(10)]
         // AcquireForegroundRights()
         public ResultCode AcquireForegroundRights(ServiceCtx context)

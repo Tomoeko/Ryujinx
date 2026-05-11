@@ -177,11 +177,46 @@ namespace Ryujinx.HLE.HOS.Services.Am.AppletAE.AllSystemAppletProxiesService.Sys
             return ResultCode.Success;
         }
 
+        [CommandCmif(32)] // 7.0.0+
+        // GetWriterLockAccessorEx(u32) -> object<nn::am::service::ILockAccessor>
+        public ResultCode GetWriterLockAccessorEx(ServiceCtx context)
+        {
+            int lockId = context.RequestData.ReadInt32();
+
+            MakeObject(context, new ILockAccessor(lockId, context.Device.System));
+
+            Logger.Stub?.PrintStub(LogClass.ServiceAm);
+
+            return ResultCode.Success;
+        }
+
+        [CommandCmif(40)] // 6.0.0+
+        // GetAppletResourceUsageInfo() -> nn::am::service::AppletResourceUsageInfo
+        public ResultCode GetAppletResourceUsageInfo(ServiceCtx context)
+        {
+            context.ResponseData.Write(new byte[0x20]);
+
+            Logger.Stub?.PrintStub(LogClass.ServiceAm);
+
+            return ResultCode.Success;
+        }
+
         [CommandCmif(50)] // 3.0.0+
         // IsVrModeEnabled() -> b8
         public ResultCode IsVrModeEnabled(ServiceCtx context)
         {
             context.ResponseData.Write(_vrModeEnabled);
+
+            return ResultCode.Success;
+        }
+
+        [CommandCmif(200)] // 7.0.0+
+        // GetOperationModeSystemInfo() -> nn::am::service::OperationModeSystemInfo
+        public ResultCode GetOperationModeSystemInfo(ServiceCtx context)
+        {
+            context.ResponseData.Write(0); // Nothing?
+
+            Logger.Stub?.PrintStub(LogClass.ServiceAm);
 
             return ResultCode.Success;
         }

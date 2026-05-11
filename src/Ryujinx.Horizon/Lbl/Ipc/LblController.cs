@@ -236,5 +236,13 @@ namespace Ryujinx.Horizon.Lbl.Ipc
 
             return Result.Success;
         }
+
+        [CmifCommand(29)] // 7.0.0+
+        public Result IsAutoBrightnessControlSupported(out bool supported)
+        {
+            supported = true;
+
+            return Result.Success;
+        }
     }
 }

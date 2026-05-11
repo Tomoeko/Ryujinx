@@ -13,6 +13,9 @@ namespace Ryujinx.HLE.HOS.Services.BluetoothManager.BtmSystem
         public KEvent _gamepadPairingEvent;
         public int    _gamepadPairingEventHandle;
 
+        public KEvent _audioDeviceConnectionEvent;
+        public int    _audioDeviceConnectionEventHandle;
+
         public IBtmSystemCore() { }
 
         [CommandCmif(6)]
@@ -52,6 +55,27 @@ namespace Ryujinx.HLE.HOS.Services.BluetoothManager.BtmSystem
             return ResultCode.Success;
         }
 
+        [CommandCmif(14)] // 13.0.0+
+        // AcquireAudioDeviceConnectionEvent() -> handle<copy>
+        public ResultCode AcquireAudioDeviceConnectionEvent(ServiceCtx context)
+        {
+            if (_audioDeviceConnectionEventHandle == 0)
+            {
+                _audioDeviceConnectionEvent = new KEvent(context.Device.System.KernelContext);
+
+                if (context.Process.HandleTable.GenerateHandle(_audioDeviceConnectionEvent.ReadableEvent, out _audioDeviceConnectionEventHandle) != Result.Success)
+                {
+                    Logger.Error?.Print(LogClass.ServiceBtm, "Out of handles!");
+                }
+            }
+
+            context.Response.HandleDesc = IpcHandleDesc.MakeCopy(_audioDeviceConnectionEventHandle);
+
+            Logger.Stub?.PrintStub(LogClass.ServiceBtm);
+
+            return ResultCode.Success;
+        }
+
         [CommandCmif(8)] // 3.0.0+
         // AcquireGamepadPairingEvent() -> (byte<1>, handle<copy>)
         public ResultCode AcquireGamepadPairingEvent(ServiceCtx context)
@@ -74,6 +98,16 @@ namespace Ryujinx.HLE.HOS.Services.BluetoothManager.BtmSystem
             context.Response.HandleDesc = IpcHandleDesc.MakeCopy(_gamepadPairingEventHandle);
 
             context.ResponseData.Write(result == Result.Success ? 1 : 0);
+
+            return ResultCode.Success;
+        }
+        [CommandCmif(20)] // 13.0.0+
+        // GetPairedAudioDevices() -> (u32, buffer<nn::btm::PairedAudioDeviceInfo, 0x6>)
+        public ResultCode GetPairedAudioDevices(ServiceCtx context)
+        {
+            context.ResponseData.Write(0u); // count
+
+            Logger.Stub?.PrintStub(LogClass.ServiceBtm);
 
             return ResultCode.Success;
         }

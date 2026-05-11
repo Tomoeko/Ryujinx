@@ -37,6 +37,13 @@ namespace Ryujinx.HLE.HOS.Services.Account.Acc.AccountService
             return _profileServer.LoadImage(context);
         }
 
+        [CommandCmif(30)]
+        // GetImageId() -> nn::account::profile::ImageId
+        public ResultCode GetImageId(ServiceCtx context)
+        {
+            return _profileServer.GetImageId(context);
+        }
+
         [CommandCmif(100)]
         // Store(nn::account::profile::ProfileBase, buffer<nn::account::profile::UserData, 0x19>)
         public ResultCode Store(ServiceCtx context)

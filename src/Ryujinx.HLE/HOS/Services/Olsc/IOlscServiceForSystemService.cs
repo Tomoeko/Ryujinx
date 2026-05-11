@@ -18,5 +18,16 @@ namespace Ryujinx.HLE.HOS.Services.Olsc
 
             return ResultCode.Success;
         }
+
+        [CommandCmif(10000)]
+        // CloneService() -> object<nn::olsc::srv::IOlscServiceForSystemService>
+        public ResultCode CloneService(ServiceCtx context)
+        {
+            MakeObject(context, new IOlscServiceForSystemService(context));
+
+            Logger.Stub?.PrintStub(LogClass.ServiceOlsc);
+
+            return ResultCode.Success;
+        }
     }
 }

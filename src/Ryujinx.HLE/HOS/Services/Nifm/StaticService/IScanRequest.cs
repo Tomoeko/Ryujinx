@@ -1,4 +1,4 @@
-﻿using Ryujinx.Common.Logging;
+using Ryujinx.Common.Logging;
 using Ryujinx.HLE.HOS.Ipc;
 using Ryujinx.HLE.HOS.Kernel.Threading;
 using Ryujinx.Horizon.Common;
@@ -21,7 +21,16 @@ namespace Ryujinx.HLE.HOS.Services.Nifm.StaticService
         public ResultCode Submit(ServiceCtx context)
         {
             Logger.Stub?.PrintStub(LogClass.ServiceNifm);
-            _systemEvent.ReadableEvent.Signal();
+            _systemEvent.WritableEvent.Signal();
+
+            return ResultCode.Success;
+        }
+
+        [CommandCmif(4)] // 6.0.0+
+        // SetChannels(buffer<nn::nifm::SetChannelsInput, 0x5>)
+        public ResultCode SetChannels(ServiceCtx context)
+        {
+            Logger.Stub?.PrintStub(LogClass.ServiceNifm);
 
             return ResultCode.Success;
         }

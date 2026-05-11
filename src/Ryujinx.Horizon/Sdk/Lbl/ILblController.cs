@@ -28,5 +28,6 @@ namespace Ryujinx.Horizon.Sdk.Lbl
         Result EnableVrMode();
         Result DisableVrMode();
         Result IsVrModeEnabled(out bool vrModeEnabled);
+        Result IsAutoBrightnessControlSupported(out bool supported);
     }
 }

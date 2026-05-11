@@ -19,13 +19,17 @@ cp "$PUBLISH_DIRECTORY/Ryujinx" "$APP_BUNDLE_DIRECTORY/Contents/MacOS/Ryujinx"
 chmod u+x "$APP_BUNDLE_DIRECTORY/Contents/MacOS/Ryujinx"
 
 # Then all libraries
-cp "$PUBLISH_DIRECTORY"/*.dylib "$APP_BUNDLE_DIRECTORY/Contents/Frameworks"
+if ls "$PUBLISH_DIRECTORY"/*.dylib 1> /dev/null 2>&1; then
+    cp "$PUBLISH_DIRECTORY"/*.dylib "$APP_BUNDLE_DIRECTORY/Contents/Frameworks"
+fi
 
 # Then resources
 cp Info.plist "$APP_BUNDLE_DIRECTORY/Contents"
 cp Ryujinx.icns "$APP_BUNDLE_DIRECTORY/Contents/Resources/Ryujinx.icns"
 cp updater.sh "$APP_BUNDLE_DIRECTORY/Contents/Resources/updater.sh"
-cp -r "$PUBLISH_DIRECTORY/THIRDPARTY.md" "$APP_BUNDLE_DIRECTORY/Contents/Resources"
+if [ -f "$PUBLISH_DIRECTORY/THIRDPARTY.md" ]; then
+    cp -r "$PUBLISH_DIRECTORY/THIRDPARTY.md" "$APP_BUNDLE_DIRECTORY/Contents/Resources"
+fi
 
 echo -n "APPL????" > "$APP_BUNDLE_DIRECTORY/Contents/PkgInfo"
 

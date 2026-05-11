@@ -43,5 +43,12 @@ namespace Ryujinx.HLE.HOS.Services.Account.Acc.AccountService
         {
             return _managerServer.LoadIdTokenCache(context);
         }
+
+        [CommandCmif(143)] // 15.0.0+
+        // GetNetworkServiceLicenseCacheEx()
+        public ResultCode GetNetworkServiceLicenseCacheEx(ServiceCtx context)
+        {
+            return _managerServer.GetNetworkServiceLicenseCacheEx(context);
+        }
     }
 }

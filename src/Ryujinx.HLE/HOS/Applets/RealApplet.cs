@@ -133,6 +133,12 @@ namespace Ryujinx.HLE.HOS.Applets
             ProcessHandle = _system.KernelContext.Processes[pid];
             AppletResourceUserId = ProcessHandle.Pid;
             AppletId = GetAppletIdFromProgramId(ProcessHandle.TitleId);
+
+            InChannel = new AppletChannel();
+            OutChannel = new AppletChannel();
+            InteractiveInChannel = new AppletChannel();
+            InteractiveOutChannel = new AppletChannel();
+            ContextChannel = new AppletChannel();
         }
 
         public void RegisterChild(RealApplet applet)

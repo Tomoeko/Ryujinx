@@ -43,5 +43,14 @@ namespace Ryujinx.HLE.HOS.Services.Am.AppletAE.AllSystemAppletProxiesService.Sys
 
             return ResultCode.Success;
         }
+
+        [CommandCmif(30)] // 12.0.0+
+        // OpenCradleFirmwareUpdater() -> object<nn::am::service::ICradleFirmwareUpdater>
+        public ResultCode OpenCradleFirmwareUpdater(ServiceCtx context)
+        {
+            MakeObject(context, new ICradleFirmwareUpdater(context));
+
+            return ResultCode.Success;
+        }
     }
 }

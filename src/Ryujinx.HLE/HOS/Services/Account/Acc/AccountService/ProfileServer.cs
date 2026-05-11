@@ -110,5 +110,15 @@ namespace Ryujinx.HLE.HOS.Services.Account.Acc.AccountService
 
             return ResultCode.Success;
         }
+
+        public ResultCode GetImageId(ServiceCtx context)
+        {
+            context.ResponseData.Write(1); // SourceType (1 = Character)
+            context.ResponseData.Write(1); // Index
+
+            Logger.Stub?.PrintStub(LogClass.ServiceAcc);
+
+            return ResultCode.Success;
+        }
     }
 }

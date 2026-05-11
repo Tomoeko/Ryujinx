@@ -1,4 +1,4 @@
-﻿using Ryujinx.Common.Logging;
+using Ryujinx.Common.Logging;
 using Ryujinx.HLE.HOS.Ipc;
 using Ryujinx.HLE.HOS.Kernel.Threading;
 using Ryujinx.HLE.HOS.Services.Hid.HidServer;
@@ -120,6 +120,20 @@ namespace Ryujinx.HLE.HOS.Services.Hid
             return ResultCode.Success;
         }
 
+        [CommandCmif(161)] // 7.0.0+
+        // GetPlatformConfig(u32, u32) -> u32
+        public ResultCode GetPlatformConfig(ServiceCtx context)
+        {
+            uint unknown0 = context.RequestData.ReadUInt32();
+            uint unknown1 = context.RequestData.ReadUInt32();
+
+            context.ResponseData.Write(0u);
+
+            Logger.Stub?.PrintStub(LogClass.ServiceHid, new { unknown0, unknown1 });
+
+            return ResultCode.Success;
+        }
+
         [CommandCmif(301)]
         // ActivateNpadSystem(u32)
         public ResultCode ActivateNpadSystem(ServiceCtx context)
@@ -192,6 +206,74 @@ namespace Ryujinx.HLE.HOS.Services.Hid
         public ResultCode GetUniquePadsFromNpad(ServiceCtx context)
         {
             context.ResponseData.Write(0L);
+
+            return ResultCode.Success;
+        }
+
+        [CommandCmif(308)] // 5.0.0+
+        // ApplyNpadSystemCommonPolicyFull(nn::applet::AppletResourceUserId)
+        public ResultCode ApplyNpadSystemCommonPolicyFull(ServiceCtx context)
+        {
+            ulong aruid = context.RequestData.ReadUInt64();
+
+            Logger.Stub?.PrintStub(LogClass.ServiceHid, new { aruid });
+
+            return ResultCode.Success;
+        }
+
+        [CommandCmif(310)] // 6.0.0+
+        // GetMaskedSupportedNpadStyleSet(nn::applet::AppletResourceUserId) -> u32
+        public ResultCode GetMaskedSupportedNpadStyleSet(ServiceCtx context)
+        {
+            ulong aruid = context.RequestData.ReadUInt64();
+
+            context.ResponseData.Write(0x00000007u); // ProController | Handheld | JoyconPair
+
+            Logger.Stub?.PrintStub(LogClass.ServiceHid, new { aruid });
+
+            return ResultCode.Success;
+        }
+
+        [CommandCmif(322)] // 10.0.0+
+        // SetNpadSystemExtStateEnabled(bool, nn::applet::AppletResourceUserId, pid)
+        public ResultCode SetNpadSystemExtStateEnabled(ServiceCtx context)
+        {
+            bool enabled = context.RequestData.ReadBoolean();
+            context.RequestData.BaseStream.Position += 7;
+            ulong aruid = context.RequestData.ReadUInt64();
+
+            Logger.Stub?.PrintStub(LogClass.ServiceHid, new { enabled, aruid });
+
+            return ResultCode.Success;
+        }
+
+        [CommandCmif(514)] // 12.0.0+
+        // SendVibrationNotificationPattern(nn::hid::system::VibrationNotificationPattern)
+        public ResultCode SendVibrationNotificationPattern(ServiceCtx context)
+        {
+            Logger.Stub?.PrintStub(LogClass.ServiceHid);
+
+            return ResultCode.Success;
+        }
+
+        [CommandCmif(523)] // 9.0.0+
+        // IsJoyConRailEnabled() -> bool
+        public ResultCode IsJoyConRailEnabled(ServiceCtx context)
+        {
+            context.ResponseData.Write(true);
+
+            Logger.Stub?.PrintStub(LogClass.ServiceHid);
+
+            return ResultCode.Success;
+        }
+
+        [CommandCmif(525)] // 11.0.0+
+        // IsJoyConAttachedOnAllRail() -> bool
+        public ResultCode IsJoyConAttachedOnAllRail(ServiceCtx context)
+        {
+            context.ResponseData.Write(true);
+
+            Logger.Stub?.PrintStub(LogClass.ServiceHid);
 
             return ResultCode.Success;
         }
@@ -337,10 +419,116 @@ namespace Ryujinx.HLE.HOS.Services.Hid
             return ResultCode.Success;
         }
 
+        [CommandCmif(1000)]
+        // SetNpadCommunicationMode(u32)
+        public ResultCode SetNpadCommunicationMode(ServiceCtx context)
+        {
+            uint mode = context.RequestData.ReadUInt32();
+
+            Logger.Stub?.PrintStub(LogClass.ServiceHid, new { mode });
+
+            return ResultCode.Success;
+        }
+
+        [CommandCmif(1001)]
+        // GetNpadCommunicationMode() -> u32
+        public ResultCode GetNpadCommunicationMode(ServiceCtx context)
+        {
+            context.ResponseData.Write(0u);
+
+            Logger.Stub?.PrintStub(LogClass.ServiceHid);
+
+            return ResultCode.Success;
+        }
+
+        [CommandCmif(1120)] // 6.0.0+
+        // SetFirmwareHotfixUpdateSkipEnabled(bool, nn::applet::AppletResourceUserId)
+        public ResultCode SetFirmwareHotfixUpdateSkipEnabled(ServiceCtx context)
+        {
+            bool enabled = context.RequestData.ReadBoolean();
+            ulong aruid = context.RequestData.ReadUInt64();
+
+            Logger.Stub?.PrintStub(LogClass.ServiceHid, new { enabled, aruid });
+
+            return ResultCode.Success;
+        }
+
+        [CommandCmif(1131)] // 6.0.0+
+        // FinalizeUsbFirmwareUpdate(nn::applet::AppletResourceUserId)
+        public ResultCode FinalizeUsbFirmwareUpdate(ServiceCtx context)
+        {
+            ulong aruid = context.RequestData.ReadUInt64();
+
+            Logger.Stub?.PrintStub(LogClass.ServiceHid, new { aruid });
+
+            return ResultCode.Success;
+        }
+
+        [CommandCmif(1132)] // 6.0.0+
+        // CheckUsbFirmwareUpdateRequired(nn::applet::AppletResourceUserId) -> bool
+        public ResultCode CheckUsbFirmwareUpdateRequired(ServiceCtx context)
+        {
+            ulong aruid = context.RequestData.ReadUInt64();
+
+            context.ResponseData.Write(false);
+
+            Logger.Stub?.PrintStub(LogClass.ServiceHid, new { aruid });
+
+            return ResultCode.Success;
+        }
+
+        [CommandCmif(1133)] // 6.0.0+
+        // StartUsbFirmwareUpdate(nn::applet::AppletResourceUserId)
+        public ResultCode StartUsbFirmwareUpdate(ServiceCtx context)
+        {
+            ulong aruid = context.RequestData.ReadUInt64();
+
+            Logger.Stub?.PrintStub(LogClass.ServiceHid, new { aruid });
+
+            return ResultCode.Success;
+        }
+
+        [CommandCmif(1134)] // 6.0.0+
+        // GetUsbFirmwareUpdateState(nn::applet::AppletResourceUserId) -> u32
+        public ResultCode GetUsbFirmwareUpdateState(ServiceCtx context)
+        {
+            ulong aruid = context.RequestData.ReadUInt64();
+
+            context.ResponseData.Write(0u); // Completed?
+
+            Logger.Stub?.PrintStub(LogClass.ServiceHid, new { aruid });
+
+            return ResultCode.Success;
+        }
+
+        [CommandCmif(1135)] // 15.0.0+
+        // InitializeUsbFirmwareUpdateWithoutMemory(nn::applet::AppletResourceUserId)
+        public ResultCode InitializeUsbFirmwareUpdateWithoutMemory(ServiceCtx context)
+        {
+            ulong aruid = context.RequestData.ReadUInt64();
+
+            Logger.Stub?.PrintStub(LogClass.ServiceHid, new { aruid });
+
+            return ResultCode.Success;
+        }
+
+        [CommandCmif(1151)] // 9.0.0+
+        // GetTouchScreenFirmwareVersion() -> unknown
+        public ResultCode GetTouchScreenFirmwareVersion(ServiceCtx context)
+        {
+            context.ResponseData.Write(0L);
+
+            Logger.Stub?.PrintStub(LogClass.ServiceHid);
+
+            return ResultCode.Success;
+        }
+
         [CommandCmif(1153)]
         // GetTouchScreenDefaultConfiguration() -> unknown
         public ResultCode GetTouchScreenDefaultConfiguration(ServiceCtx context)
         {
+            context.ResponseData.Write(new byte[0x20]); // Stub size?
+
             Logger.Stub?.PrintStub(LogClass.ServiceHid);
 
             return ResultCode.Success;

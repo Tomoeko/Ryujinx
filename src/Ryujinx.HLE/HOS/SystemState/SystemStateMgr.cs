@@ -69,6 +69,11 @@ namespace Ryujinx.HLE.HOS.SystemState
             DesiredRegionCode = (uint)region;
         }
 
+        public void SetKeyboardLayout(long layout)
+        {
+            DesiredKeyboardLayout = layout;
+        }
+
         internal static long GetLanguageCode(int index)
         {
             if ((uint)index >= LanguageCodes.Length)

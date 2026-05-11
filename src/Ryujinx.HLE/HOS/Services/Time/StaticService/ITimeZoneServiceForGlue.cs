@@ -110,6 +110,13 @@ namespace Ryujinx.HLE.HOS.Services.Time.StaticService
             return _timeZoneContentManager.LoadTimeZoneRule(ref rules, locationName);
         }
 
+        [CommandCmif(5)] // 2.0.0+
+        // GetTimeZoneRuleVersion() -> nn::time::TimeZoneRuleVersion
+        public ResultCode GetTimeZoneRuleVersion(ServiceCtx context)
+        {
+            return _inner.GetTimeZoneRuleVersion(context);
+        }
+
         [CommandCmif(100)]
         // ToCalendarTime(nn::time::PosixTime time, buffer<nn::time::TimeZoneRule, 0x15> rules) -> (nn::time::CalendarTime, nn::time::sf::CalendarAdditionalInfo)
         public ResultCode ToCalendarTime(ServiceCtx context)

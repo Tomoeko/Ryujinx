@@ -195,5 +195,12 @@ namespace Ryujinx.HLE.HOS.Services.Account.Acc.AccountService
 
             return ResultCode.Success;
         }
+
+        public ResultCode GetNetworkServiceLicenseCacheEx(ServiceCtx context)
+        {
+            Logger.Stub?.PrintStub(LogClass.ServiceAcc);
+
+            return ResultCode.Success;
+        }
     }
 }

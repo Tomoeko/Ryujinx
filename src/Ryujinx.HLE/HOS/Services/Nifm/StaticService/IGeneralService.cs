@@ -313,6 +313,17 @@ namespace Ryujinx.HLE.HOS.Services.Nifm.StaticService
             return ResultCode.Success;
         }
 
+        [CommandCmif(25)]
+        // GetSsidListVersion() -> u32
+        public ResultCode GetSsidListVersion(ServiceCtx context)
+        {
+            context.ResponseData.Write(0u);
+
+            Logger.Stub?.PrintStub(LogClass.ServiceNifm);
+
+            return ResultCode.Success;
+        }
+
         [CommandCmif(26)]
         // SetExclusiveClient(buffer<nn::nifm::ClientId, 0x19, 4>)
         public ResultCode SetExclusiveClient(ServiceCtx context)
@@ -323,6 +334,52 @@ namespace Ryujinx.HLE.HOS.Services.Nifm.StaticService
 #pragma warning restore IDE0059
 
             int clientId = context.Memory.Read<int>(position);
+
+            Logger.Stub?.PrintStub(LogClass.ServiceNifm);
+
+            return ResultCode.Success;
+        }
+
+        [CommandCmif(34)] // 4.0.0+
+        // SetBackgroundRequestEnabled(b8, u32)
+        public ResultCode SetBackgroundRequestEnabled(ServiceCtx context)
+        {
+            ulong position = context.Request.PtrBuff[0].Position;
+#pragma warning disable IDE0059 // Remove unnecessary value assignment
+            ulong size = context.Request.PtrBuff[0].Size;
+#pragma warning restore IDE0059
+
+            int clientId = context.Memory.Read<int>(position);
+
+            Logger.Stub?.PrintStub(LogClass.ServiceNifm);
+
+            return ResultCode.Success;
+        }
+
+        [CommandCmif(35)] // 4.0.0+
+        // GetScanData() -> (u32, buffer<nn::nifm::detail::sf::AccessPointData, 0x6>)
+        public ResultCode GetScanDataEx(ServiceCtx context)
+        {
+            context.ResponseData.Write(0u); // Count
+
+            Logger.Stub?.PrintStub(LogClass.ServiceNifm);
+
+            return ResultCode.Success;
+        }
+
+        [CommandCmif(36)] // 4.0.0+
+        // GetCurrentAccessPoint() -> buffer<nn::nifm::detail::sf::AccessPointData, 0x1a>
+        public ResultCode GetCurrentAccessPoint(ServiceCtx context)
+        {
+            Logger.Info?.Print(LogClass.ServiceNifm, $"GetCurrentAccessPoint: RecvListBuff={context.Request.RecvListBuff.Count}, PtrBuff={context.Request.PtrBuff.Count}, ReceiveBuff={context.Request.ReceiveBuff.Count}");
+
+            if (context.Request.RecvListBuff.Count > 0)
+            {
+                ulong position = context.Request.RecvListBuff[0].Position;
+                ulong size = context.Request.RecvListBuff[0].Size;
+
+                Logger.Info?.Print(LogClass.ServiceNifm, $"GetCurrentAccessPoint: RecvListBuff[0] Position=0x{position:X}, Size=0x{size:X}");
+            }
 
             Logger.Stub?.PrintStub(LogClass.ServiceNifm);
 

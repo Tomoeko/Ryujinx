@@ -1,4 +1,4 @@
-﻿using Ryujinx.Common;
+using Ryujinx.Common;
 using Ryujinx.Common.Logging;
 using Ryujinx.HLE.HOS.Applets;
 using Ryujinx.HLE.HOS.Ipc;
@@ -29,8 +29,15 @@ namespace Ryujinx.HLE.HOS.Services.Am.AppletAE.AllSystemAppletProxiesService.Lib
             _normalInDataEvent = new KEvent(system.KernelContext);
             _interactiveInDataEvent = new KEvent(system.KernelContext);
 
-            _applet.InChannel.DataAvailable += OnNormalInData;
-            _applet.InteractiveInChannel.DataAvailable += OnInteractiveInData;
+            if (_applet != null)
+            {
+                _applet.InChannel.DataAvailable += OnNormalInData;
+                _applet.InteractiveInChannel.DataAvailable += OnInteractiveInData;
+            }
+            else
+            {
+                Logger.Error?.Print(LogClass.ServiceAm, $"ILibraryAppletSelfAccessor: Applet with pid {pid} not found!");
+            }
         }
 
         private void OnNormalInData(object sender, EventArgs e)
@@ -159,6 +166,21 @@ namespace Ryujinx.HLE.HOS.Services.Am.AppletAE.AllSystemAppletProxiesService.Lib
             libraryAppletInfo.LibraryAppletMode = _applet.LibraryAppletMode;
 
             context.ResponseData.WriteStruct(libraryAppletInfo);
+
+            return ResultCode.Success;
+        }
+
+        [CommandCmif(160)] // 17.0.0+
+        // GetLibraryAppletInfoEx() -> (nn::am::service::LibraryAppletInfo, u32)
+        public ResultCode GetLibraryAppletInfoEx(ServiceCtx context)
+        {
+            LibraryAppletInfo libraryAppletInfo = new();
+
+            libraryAppletInfo.AppletId = _applet.AppletId;
+            libraryAppletInfo.LibraryAppletMode = _applet.LibraryAppletMode;
+
+            context.ResponseData.WriteStruct(libraryAppletInfo);
+            context.ResponseData.Write(0u); // Unknown
 
             return ResultCode.Success;
         }

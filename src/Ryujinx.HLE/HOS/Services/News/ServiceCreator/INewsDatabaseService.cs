@@ -1,4 +1,4 @@
-﻿using Ryujinx.Common.Logging;
+using Ryujinx.Common.Logging;
 
 namespace Ryujinx.HLE.HOS.Services.News.ServiceCreator
 {
@@ -33,6 +33,17 @@ namespace Ryujinx.HLE.HOS.Services.News.ServiceCreator
         public ResultCode UpdateIntegerValueWithAddition(ServiceCtx context)
         {
             Logger.Stub?.PrintStub(LogClass.ServiceNews);
+
+            return ResultCode.Success;
+        }
+
+        [CommandCmif(1000)]
+        // GetList(unknown) -> unknown
+        public ResultCode GetList(ServiceCtx context)
+        {
+            Logger.Stub?.PrintStub(LogClass.ServiceNews);
+
+            context.ResponseData.Write(0);
 
             return ResultCode.Success;
         }
