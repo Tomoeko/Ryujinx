@@ -157,6 +157,14 @@ namespace Ryujinx.HLE.HOS.Services.Fs
             return (ResultCode)_baseFileSystemProxy.Get.InvalidateBisCache().Value;
         }
 
+        [CommandCmif(17)]
+        // OpenHostFileSystem(buffer<bytes<0x301>, 0x19, 0x301> path) -> object<nn::fssrv::sf::IFileSystem>
+        public ResultCode OpenHostFileSystem(ServiceCtx context)
+        {
+            Logger.Warning?.Print(LogClass.ServiceFs, "OpenHostFileSystem is not supported, returning PartitionNotFound.");
+            return ResultCode.PartitionNotFound;
+        }
+
         [CommandCmif(18)]
         // OpenSdCardFileSystem() -> object<nn::fssrv::sf::IFileSystem>
         public ResultCode OpenSdCardFileSystem(ServiceCtx context)
