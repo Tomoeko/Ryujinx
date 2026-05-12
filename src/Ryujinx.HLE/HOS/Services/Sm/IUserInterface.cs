@@ -70,6 +70,12 @@ namespace Ryujinx.HLE.HOS.Services.Sm
                 return ResultCode.InvalidName;
             }
 
+            if (name == "htc" || name == "htcs")
+            {
+                Logger.Warning?.Print(LogClass.ServiceSm, $"Rejecting devkit service {name} to prevent crash.");
+                return ResultCode.NotRegistered;
+            }
+
             KSession session = new(context.Device.System.KernelContext);
 
             if (_registry.TryGetService(name, out KPort port))
