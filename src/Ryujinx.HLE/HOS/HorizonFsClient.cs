@@ -53,7 +53,7 @@ namespace Ryujinx.HLE.HOS
                     {
                         ncaStorage = new LocalStorage(ncaPath, FileAccess.Read, FileMode.Open);
 
-                        Nca nca = new(_system.KeySet, ncaStorage);
+                        Nca nca = new(_system.Device.FileSystem.GetKeySetForPath(ncaPath), ncaStorage);
 
                         using var ncaFileSystem = nca.OpenFileSystem(NcaSectionType.Data, _system.FsIntegrityCheckLevel);
                         using var ncaFsRef = new UniqueRef<IFileSystem>(ncaFileSystem);

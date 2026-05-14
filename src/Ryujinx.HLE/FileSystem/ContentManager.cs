@@ -8,6 +8,7 @@ using LibHac.Tools.Fs;
 using LibHac.Tools.FsSystem;
 using LibHac.Tools.FsSystem.NcaUtils;
 using LibHac.Tools.Ncm;
+using Ryujinx.Common.Configuration;
 using Ryujinx.Common.Logging;
 using Ryujinx.Common.Memory;
 using Ryujinx.Common.Utilities;
@@ -53,6 +54,11 @@ namespace Ryujinx.HLE.FileSystem
         private SortedList<ulong, AocItem> AocData { get; }
 
         private readonly VirtualFileSystem _virtualFileSystem;
+
+        // Prod keyset loaded when firmware NCAs are found at the non-dev
+        // system path.  Used to decrypt prod-encrypted firmware content.
+        private KeySet _prodKeySet;
+        public KeySet ProdKeySet => _prodKeySet;
 
         private readonly object _lock = new();
 
@@ -124,48 +130,128 @@ namespace Ryujinx.HLE.FileSystem
                         locationList.AddLast(entry);
                     }
 
-                    foreach (string directoryPath in Directory.EnumerateDirectories(registeredDirectory))
+                    // Collect all directories to scan. For BuiltInSystem, if the dev-keyset
+                    // registered directory is empty, also scan the non-dev system path as a
+                    // fallback.  Firmware NCAs are typically installed under the non-dev path
+                    // (bis/system/Contents/registered/) but the dev build looks under
+                    // bis/system_dev/Contents/registered/.
+                    var directoriesToScan = new System.Collections.Generic.List<string> { registeredDirectory };
+
+                    if (storageId == StorageId.BuiltInSystem
+                        && Directory.GetDirectories(registeredDirectory).Length == 0
+                        && Directory.GetFiles(registeredDirectory).Length == 0)
                     {
-                        if (Directory.GetFiles(directoryPath).Length > 0)
+                        // Try the non-dev path
+                        string nonDevSystem = Path.Combine(AppDataManager.BaseDirPath,
+                            AppDataManager.DefaultNandDir, "system", "Contents", "registered");
+                        if (Directory.Exists(nonDevSystem) && nonDevSystem != registeredDirectory)
                         {
-                            string ncaName = new DirectoryInfo(directoryPath).Name.Replace(".nca", string.Empty);
-
-                            using FileStream ncaFile = File.OpenRead(Directory.GetFiles(directoryPath)[0]);
-                            Nca nca = new(_virtualFileSystem.KeySet, ncaFile.AsStorage());
-
-                            string switchPath = contentPathString + ":/" + ncaFile.Name.Replace(contentDirectory, string.Empty).TrimStart(Path.DirectorySeparatorChar);
-
-                            // Change path format to switch's
-                            switchPath = switchPath.Replace('\\', '/');
-
-                            LocationEntry entry = new(switchPath, 0, nca.Header.TitleId, nca.Header.ContentType);
-
-                            AddEntry(entry);
-
-                            _contentDictionary.Add((nca.Header.TitleId, nca.Header.ContentType), ncaName);
+                            Logger.Info?.Print(LogClass.Loader,
+                                $"Dev-keyset system content directory is empty, falling back to non-dev path: {nonDevSystem}");
+                            directoriesToScan.Add(nonDevSystem);
                         }
                     }
 
-                    foreach (string filePath in Directory.EnumerateFiles(contentDirectory))
+                    // When scanning non-dev paths, firmware NCAs are encrypted with prod
+                    // keys.  Create a temporary prod-mode keyset for those reads.
+                    KeySet prodKeySet = null;
+                    string nonDevScanDir = null;
+                    if (directoriesToScan.Count > 1)
                     {
-                        if (Path.GetExtension(filePath) == ".nca")
+                        nonDevScanDir = directoriesToScan[1];
+                        prodKeySet = KeySet.CreateDefaultKeySet();
+                        // Load prod keys from the same locations the main keyset uses
+                        string prodKeyFile = Path.Combine(AppDataManager.KeysDirPath, "prod.keys");
+                        if (!File.Exists(prodKeyFile))
                         {
-                            string ncaName = Path.GetFileNameWithoutExtension(filePath);
-
-                            using FileStream ncaFile = new(filePath, FileMode.Open, FileAccess.Read);
-                            Nca nca = new(_virtualFileSystem.KeySet, ncaFile.AsStorage());
-
-                            string switchPath = contentPathString + ":/" + filePath.Replace(contentDirectory, string.Empty).TrimStart(Path.DirectorySeparatorChar);
-
-                            // Change path format to switch's
-                            switchPath = switchPath.Replace('\\', '/');
-
-                            LocationEntry entry = new(switchPath, 0, nca.Header.TitleId, nca.Header.ContentType);
-
-                            AddEntry(entry);
-
-                            _contentDictionary.Add((nca.Header.TitleId, nca.Header.ContentType), ncaName);
+                            prodKeyFile = Path.Combine(AppDataManager.KeysDirPathUser, "prod.keys");
                         }
+                        if (File.Exists(prodKeyFile))
+                        {
+                            ExternalKeyReader.ReadKeyFile(prodKeySet, prodKeyFile, null, null, null);
+                            Logger.Info?.Print(LogClass.Loader, "Loaded prod keyset for non-dev firmware NCA decryption");
+                        }
+                    }
+
+                    foreach (string scanDir in directoriesToScan)
+                    {
+                        // Use prod keys for NCAs in the non-dev fallback directory
+                        KeySet activeKeySet = (scanDir == nonDevScanDir && prodKeySet != null)
+                            ? prodKeySet : _virtualFileSystem.KeySet;
+
+                        // For path construction, we need to strip the content directory
+                        // (parent of "registered/") to get proper switch paths.
+                        // For the non-dev fallback, use the non-dev content directory as base.
+                        string pathBase = (scanDir == nonDevScanDir)
+                            ? Path.Combine(AppDataManager.BaseDirPath,
+                                AppDataManager.DefaultNandDir, "system", "Contents")
+                            : contentDirectory;
+
+                        foreach (string directoryPath in Directory.EnumerateDirectories(scanDir))
+                        {
+                            if (Directory.GetFiles(directoryPath).Length > 0)
+                            {
+                                string ncaName = new DirectoryInfo(directoryPath).Name.Replace(".nca", string.Empty);
+
+                                try
+                                {
+                                    using FileStream ncaFile = File.OpenRead(Directory.GetFiles(directoryPath)[0]);
+                                    Nca nca = new(activeKeySet, ncaFile.AsStorage());
+
+                                    string switchPath = contentPathString + ":/" + ncaFile.Name.Replace(pathBase, string.Empty).TrimStart(Path.DirectorySeparatorChar);
+
+                                    // Change path format to switch's
+                                    switchPath = switchPath.Replace('\\', '/');
+
+                                    LocationEntry entry = new(switchPath, 0, nca.Header.TitleId, nca.Header.ContentType);
+
+                                    AddEntry(entry);
+
+                                    _contentDictionary.TryAdd((nca.Header.TitleId, nca.Header.ContentType), ncaName);
+                                }
+                                catch (Exception ex)
+                                {
+                                    Logger.Warning?.Print(LogClass.Loader,
+                                        $"Failed to read NCA {ncaName}: {ex.Message}");
+                                }
+                            }
+                        }
+
+                        foreach (string filePath in Directory.EnumerateFiles(scanDir))
+                        {
+                            if (Path.GetExtension(filePath) == ".nca")
+                            {
+                                string ncaName = Path.GetFileNameWithoutExtension(filePath);
+
+                                try
+                                {
+                                    using FileStream ncaFile = new(filePath, FileMode.Open, FileAccess.Read);
+                                    Nca nca = new(activeKeySet, ncaFile.AsStorage());
+
+                                    string switchPath = contentPathString + ":/" + filePath.Replace(pathBase, string.Empty).TrimStart(Path.DirectorySeparatorChar);
+
+                                    // Change path format to switch's
+                                    switchPath = switchPath.Replace('\\', '/');
+
+                                    LocationEntry entry = new(switchPath, 0, nca.Header.TitleId, nca.Header.ContentType);
+
+                                    AddEntry(entry);
+
+                                    _contentDictionary.TryAdd((nca.Header.TitleId, nca.Header.ContentType), ncaName);
+                                }
+                                catch (Exception ex)
+                                {
+                                    Logger.Warning?.Print(LogClass.Loader,
+                                        $"Failed to read NCA {ncaName}: {ex.Message}");
+                                }
+                            }
+                        }
+                    }
+
+                    // Store prod keyset reference for later content verification/font loading
+                    if (prodKeySet != null)
+                    {
+                        _prodKeySet = prodKeySet;
                     }
 
                     if (_locationEntries.TryGetValue(storageId, out var locationEntriesItem) && locationEntriesItem?.Count == 0)
@@ -351,16 +437,13 @@ namespace Ryujinx.HLE.FileSystem
 
             string installedPath = VirtualFileSystem.SwitchPathToSystemPath(locationEntry.ContentPath);
 
-            if (!string.IsNullOrWhiteSpace(installedPath))
+            if (!string.IsNullOrWhiteSpace(installedPath) && File.Exists(installedPath))
             {
-                if (File.Exists(installedPath))
-                {
-                    using FileStream file = new(installedPath, FileMode.Open, FileAccess.Read);
-                    Nca nca = new(_virtualFileSystem.KeySet, file.AsStorage());
-                    bool contentCheck = nca.Header.ContentType == contentType;
+                using FileStream file = new(installedPath, FileMode.Open, FileAccess.Read);
+                Nca nca = new(_virtualFileSystem.GetKeySetForPath(installedPath), file.AsStorage());
+                bool contentCheck = nca.Header.ContentType == contentType;
 
-                    return contentCheck;
-                }
+                return contentCheck;
             }
 
             return false;
@@ -944,10 +1027,15 @@ namespace Ryujinx.HLE.FileSystem
                 {
                     if (entry.ContentType == NcaContentType.Data)
                     {
-                        var path = VirtualFileSystem.SwitchPathToSystemPath(entry.ContentPath);
+                        var path = ResolveSystemPath(entry.ContentPath);
+
+                        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+                        {
+                            continue;
+                        }
 
                         using FileStream fileStream = File.OpenRead(path);
-                        Nca nca = new(_virtualFileSystem.KeySet, fileStream.AsStorage());
+                        Nca nca = new(_virtualFileSystem.GetKeySetForPath(path), fileStream.AsStorage());
 
                         if (nca.Header.TitleId == SystemVersionTitleId && nca.Header.ContentType == NcaContentType.Data)
                         {
@@ -965,6 +1053,45 @@ namespace Ryujinx.HLE.FileSystem
             }
 
             return null;
+        }
+
+        /// <summary>
+        /// Resolves a switch content path to a real filesystem path, falling back
+        /// to the non-dev system directory when the dev path doesn't exist.
+        /// </summary>
+        public string ResolveSystemPath(string switchContentPath)
+        {
+            string path = VirtualFileSystem.SwitchPathToSystemPath(switchContentPath);
+
+            if (!string.IsNullOrWhiteSpace(path) && !File.Exists(path) && !Directory.Exists(Path.GetDirectoryName(path)))
+            {
+                string nonDevPath = path.Replace(
+                    Path.Combine("bis", "system_dev"),
+                    Path.Combine("bis", "system"));
+                if (File.Exists(nonDevPath))
+                {
+                    return nonDevPath;
+                }
+            }
+
+            return path;
+        }
+
+        /// <summary>
+        /// Returns the appropriate KeySet for a resolved filesystem path.
+        /// Uses the prod keyset for files in the non-dev system directory.
+        /// </summary>
+        public KeySet GetKeySetForPath(string resolvedPath)
+        {
+            if (_prodKeySet != null
+                && resolvedPath != null
+                && resolvedPath.Contains(Path.Combine("bis", "system" + Path.DirectorySeparatorChar))
+                && !resolvedPath.Contains(Path.Combine("bis", "system_dev")))
+            {
+                return _prodKeySet;
+            }
+
+            return _virtualFileSystem.KeySet;
         }
     }
 }

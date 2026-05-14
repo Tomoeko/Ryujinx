@@ -917,7 +917,7 @@ namespace Ryujinx.HLE.HOS.Services.Fs
                         try
                         {
                             LibHac.Fs.IStorage ncaStorage = new LocalStorage(ncaPath, FileAccess.Read, FileMode.Open);
-                            Nca nca = new(context.Device.System.KeySet, ncaStorage);
+                            Nca nca = new(context.Device.FileSystem.GetKeySetForPath(ncaPath), ncaStorage);
                             LibHac.Fs.IStorage romfsStorage = nca.OpenStorage(NcaSectionType.Data, context.Device.System.FsIntegrityCheckLevel);
                             using var sharedStorage = new SharedRef<LibHac.Fs.IStorage>(romfsStorage);
                             using var sfStorage = new SharedRef<IStorage>(new StorageInterfaceAdapter(ref sharedStorage.Ref));

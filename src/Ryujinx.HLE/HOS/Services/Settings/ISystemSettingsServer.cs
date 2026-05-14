@@ -835,7 +835,7 @@ namespace Ryujinx.HLE.HOS.Services.Settings
             string firmwareTitlePath = FileSystem.VirtualFileSystem.SwitchPathToSystemPath(contentPath);
 
             using IStorage firmwareStorage = new LocalStorage(firmwareTitlePath, FileAccess.Read);
-            Nca firmwareContent = new(device.System.KeySet, firmwareStorage);
+            Nca firmwareContent = new(device.FileSystem.GetKeySetForPath(firmwareTitlePath), firmwareStorage);
 
             if (!firmwareContent.CanOpenSection(NcaSectionType.Data))
             {

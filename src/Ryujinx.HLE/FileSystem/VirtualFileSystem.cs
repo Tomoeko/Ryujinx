@@ -32,6 +32,7 @@ namespace Ryujinx.HLE.FileSystem
         public static readonly string UserNandPath = Path.Combine(AppDataManager.DefaultNandDir, "user_dev");
 
         public KeySet KeySet { get; private set; }
+        public KeySet ProdKeySet { get; private set; }
         public EmulatedGameCard GameCard { get; private set; }
         public SdmmcApi SdCard { get; private set; }
         public ModLoader ModLoader { get; private set; }
@@ -123,7 +124,40 @@ namespace Ryujinx.HLE.FileSystem
                 return null;
             }
 
-            return GetFullPath(MakeFullPath(parts[0]), parts[1]);
+            string result = GetFullPath(MakeFullPath(parts[0]), parts[1]);
+
+            // When running with dev keyset, system content resolves to system_dev/
+            // but firmware NCAs may be installed under the non-dev system/ path.
+            // Fall back to the non-dev path if the dev path doesn't exist.
+            if (result != null && !File.Exists(result) && result.Contains(Path.Combine("bis", "system_dev")))
+            {
+                string nonDevResult = result.Replace(
+                    Path.Combine("bis", "system_dev"),
+                    Path.Combine("bis", "system"));
+                if (File.Exists(nonDevResult))
+                {
+                    return nonDevResult;
+                }
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Returns the appropriate keyset for a resolved NCA path.
+        /// Files in the non-dev system directory use the prod keyset.
+        /// </summary>
+        public KeySet GetKeySetForPath(string resolvedPath)
+        {
+            if (ProdKeySet != null
+                && resolvedPath != null
+                && resolvedPath.Contains(Path.Combine("bis", "system" + Path.DirectorySeparatorChar))
+                && !resolvedPath.Contains(Path.Combine("bis", "system_dev")))
+            {
+                return ProdKeySet;
+            }
+
+            return KeySet;
         }
 
         public static string SystemPathToSwitchPath(string systemPath)
@@ -266,6 +300,26 @@ namespace Ryujinx.HLE.FileSystem
             }
 
             ExternalKeyReader.ReadKeyFile(KeySet, keyFile, titleKeyFile, consoleKeyFile, null);
+
+            // Also load a prod keyset for decrypting firmware NCAs installed under
+            // the non-dev system path.  Firmware installed via the retail UI uses
+            // prod encryption which can't be read with dev keys.
+            ProdKeySet = KeySet.CreateDefaultKeySet();
+            string prodKeyFile = null;
+            if (AppDataManager.Mode == AppDataManager.LaunchMode.UserProfile)
+            {
+                string userProd = Path.Combine(AppDataManager.KeysDirPathUser, "prod.keys");
+                if (File.Exists(userProd)) prodKeyFile = userProd;
+            }
+            if (prodKeyFile == null)
+            {
+                string sysProd = Path.Combine(AppDataManager.KeysDirPath, "prod.keys");
+                if (File.Exists(sysProd)) prodKeyFile = sysProd;
+            }
+            if (prodKeyFile != null)
+            {
+                ExternalKeyReader.ReadKeyFile(ProdKeySet, prodKeyFile, titleKeyFile, consoleKeyFile, null);
+            }
 
             if (cal0File != null)
             {

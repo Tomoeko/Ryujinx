@@ -67,13 +67,13 @@ namespace Ryujinx.HLE.HOS.Services.Sdb.Pl
                         string contentPath = contentManager.GetInstalledContentPath(fontTitle, StorageId.BuiltInSystem, NcaContentType.Data);
                         string fontPath = VirtualFileSystem.SwitchPathToSystemPath(contentPath);
 
-                        if (!string.IsNullOrWhiteSpace(fontPath))
+                        if (!string.IsNullOrWhiteSpace(fontPath) && System.IO.File.Exists(fontPath))
                         {
                             byte[] data;
 
                             using (IStorage ncaFileStream = new LocalStorage(fontPath, FileAccess.Read, FileMode.Open))
                             {
-                                Nca nca = new(_device.System.KeySet, ncaFileStream);
+                                Nca nca = new(_device.FileSystem.GetKeySetForPath(fontPath), ncaFileStream);
                                 IFileSystem romfs = nca.OpenFileSystem(NcaSectionType.Data, _device.System.FsIntegrityCheckLevel);
 
                                 using var fontFile = new UniqueRef<IFile>();
@@ -100,12 +100,11 @@ namespace Ryujinx.HLE.HOS.Services.Sdb.Pl
                         }
                         else
                         {
-                            if (!contentManager.TryGetSystemTitlesName(fontTitle, out string titleName))
-                            {
-                                titleName = "Unknown";
-                            }
+                                Ryujinx.Common.Logging.Logger.Warning?.Print(Ryujinx.Common.Logging.LogClass.ServicePl,
+                                $"Font \"{name}\" system title not found, using empty placeholder. Provide the system archive for proper font rendering.");
 
-                            throw new InvalidSystemResourceException($"{titleName} ({fontTitle:x8}) system title not found! This font will not work, provide the system archive to fix this error. (See https://github.com/Ryujinx/Ryujinx#requirements for more information)");
+                            // Return a minimal empty font entry so the game can continue.
+                            return new FontInfo((int)fontOffset, 0);
                         }
                     }
                     else
