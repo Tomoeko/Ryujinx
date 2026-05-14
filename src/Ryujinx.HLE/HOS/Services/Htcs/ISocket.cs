@@ -1,29 +1,12 @@
 using Ryujinx.Common.Logging;
+using System.Threading;
 
 namespace Ryujinx.HLE.HOS.Services.Htcs
 {
     class ISocket : IpcService
     {
-        // ISocket command IDs:
-        // 0: Close(out s32 errorCode, out s32 result)
-        // 1: Connect(SockAddrHtcs address, out s32 errorCode, out s32 result)
-        // 2: Bind(SockAddrHtcs address, out s32 errorCode, out s32 result)
-        // 3: Listen(s32 backlogCount, out s32 errorCode, out s32 result)
-        // 4: Accept(out s32 errorCode, out object<ISocket>, out SockAddrHtcs address)
-        // 5: Recv(s32 flags, out s32 errorCode, out s64 receivedSize, buffer<bytes>)
-        // 6: Send(s32 flags, buffer<bytes>, out s32 errorCode, out s64 sentSize)
-        // 7: Shutdown(s32 how, out s32 errorCode, out s32 result)
-        // 8: Fcntl(s32 command, s32 value, out s32 errorCode, out s32 result)
-        // 9: AcceptStart(out u32 taskId, out handle waitHandle)
-        // 10: AcceptResults(u32 taskId, out s32 errorCode, out object<ISocket>, out SockAddrHtcs address)
-        // 11: RecvStart(s32 memorySize, s32 flags, out u32 taskId, out handle waitHandle)
-        // 12: RecvResults(u32 taskId, out s32 errorCode, out s64 receivedSize, buffer<bytes>)
-        // 13: RecvLargeStart(...)
-        // 14: SendStart(s32 flags, buffer<bytes>, out u32 taskId, out handle waitHandle)
-        // 15: SendLargeStart(...)
-        // 16: SendResults(u32 taskId, out s32 errorCode, out s64 sentSize)
-
-        private const int HtcsErrDisconnected = -1;
+        // On real hardware, socket operations work normally.
+        // Only Accept/Recv block waiting for a host connection.
 
         public ISocket() { }
 
@@ -47,8 +30,9 @@ namespace Ryujinx.HLE.HOS.Services.Htcs
 
             Logger.Stub?.PrintStub(LogClass.ServiceHtcs);
 
-            context.ResponseData.Write(HtcsErrDisconnected);  // errorCode
-            context.ResponseData.Write(-1);                    // result
+            // Connect blocks until peer is available; return disconnected
+            context.ResponseData.Write(-1);  // errorCode = disconnected
+            context.ResponseData.Write(-1);  // result
 
             return ResultCode.Success;
         }
@@ -61,8 +45,9 @@ namespace Ryujinx.HLE.HOS.Services.Htcs
 
             Logger.Stub?.PrintStub(LogClass.ServiceHtcs);
 
-            context.ResponseData.Write(HtcsErrDisconnected);  // errorCode
-            context.ResponseData.Write(-1);                    // result
+            // Bind succeeds on real hardware
+            context.ResponseData.Write(0);  // errorCode = success
+            context.ResponseData.Write(0);  // result = success
 
             return ResultCode.Success;
         }
@@ -75,8 +60,9 @@ namespace Ryujinx.HLE.HOS.Services.Htcs
 
             Logger.Stub?.PrintStub(LogClass.ServiceHtcs, new { backlogCount });
 
-            context.ResponseData.Write(HtcsErrDisconnected);  // errorCode
-            context.ResponseData.Write(-1);                    // result
+            // Listen succeeds on real hardware
+            context.ResponseData.Write(0);  // errorCode = success
+            context.ResponseData.Write(0);  // result = success
 
             return ResultCode.Success;
         }
@@ -87,9 +73,13 @@ namespace Ryujinx.HLE.HOS.Services.Htcs
         {
             Logger.Stub?.PrintStub(LogClass.ServiceHtcs);
 
-            context.ResponseData.Write(HtcsErrDisconnected);  // errorCode
-            context.ResponseData.Write(new byte[68]);          // SockAddrHtcs (zeroed)
+            // On real hardware, Accept blocks forever waiting for a host connection.
+            // The hostio thread parks here until a Target Manager connects.
+            Thread.Sleep(Timeout.Infinite);
 
+            // Unreachable
+            context.ResponseData.Write(-1);           // errorCode
+            context.ResponseData.Write(new byte[68]); // SockAddrHtcs
             MakeObject(context, new ISocket());
 
             return ResultCode.Success;
@@ -103,9 +93,12 @@ namespace Ryujinx.HLE.HOS.Services.Htcs
 
             Logger.Stub?.PrintStub(LogClass.ServiceHtcs, new { flags });
 
-            context.ResponseData.Write(HtcsErrDisconnected);  // errorCode
-            context.ResponseData.Write(0);                     // padding
-            context.ResponseData.Write(0L);                    // receivedSize
+            // Recv blocks waiting for data from host
+            Thread.Sleep(Timeout.Infinite);
+
+            context.ResponseData.Write(-1);  // errorCode
+            context.ResponseData.Write(0);   // padding
+            context.ResponseData.Write(0L);  // receivedSize
 
             return ResultCode.Success;
         }
@@ -118,9 +111,9 @@ namespace Ryujinx.HLE.HOS.Services.Htcs
 
             Logger.Stub?.PrintStub(LogClass.ServiceHtcs, new { flags });
 
-            context.ResponseData.Write(HtcsErrDisconnected);  // errorCode
-            context.ResponseData.Write(0);                     // padding
-            context.ResponseData.Write(0L);                    // sentSize
+            context.ResponseData.Write(-1);  // errorCode = disconnected
+            context.ResponseData.Write(0);   // padding
+            context.ResponseData.Write(0L);  // sentSize
 
             return ResultCode.Success;
         }
