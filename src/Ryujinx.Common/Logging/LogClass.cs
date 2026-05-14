@@ -40,6 +40,7 @@ namespace Ryujinx.Common.Logging
         ServiceFriend,
         ServiceFs,
         ServiceHid,
+        ServiceHtcs,
         ServiceHshl,
         ServiceIrs,
         ServiceLbl,

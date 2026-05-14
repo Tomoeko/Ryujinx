@@ -72,7 +72,15 @@ namespace Ryujinx.HLE.HOS.Services.Sm
 
             KSession session = new(context.Device.System.KernelContext);
 
-            if (_registry.TryGetService(name, out KPort port))
+            // When a guest-registered service also has an HLE implementation,
+            // prefer HLE. Dev-build games self-register services like "htcs"
+            // whose server-side logic requires real hardware (TMA host connection).
+            // Our HLE stubs return proper error codes so the guest handles
+            // disconnection gracefully instead of aborting.
+            bool hasHleImpl = _services.ContainsKey(name);
+            bool useGuestPort = _registry.TryGetService(name, out KPort port) && !hasHleImpl;
+
+            if (useGuestPort)
             {
                 Result result = port.EnqueueIncomingSession(session.ServerSession);
 
