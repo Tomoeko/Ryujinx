@@ -438,6 +438,24 @@ namespace Ryujinx.HLE.HOS.Kernel.Threading
                 for (int core = 0; core < CpuCoresCount; core++)
                 {
                     RotateScheduledQueue(context, core, _preemptionPriorities[core]);
+
+                    // Universal time-slice rotation: rotate the currently scheduled thread
+                    // on each core regardless of priority level. The HOS preemption timer
+                    // only handles priority 59/63, but game threads at 28-58 also need
+                    // round-robin to prevent tight-loop monopolization (e.g., message queue
+                    // polling threads starving resource loading threads).
+                    KThread currentTop = context.PriorityQueue.ScheduledThreadsFirstOrDefault(core);
+                    if (currentTop != null &&
+                        currentTop.DynamicPriority != _preemptionPriorities[core] &&
+                        currentTop.DynamicPriority >= 2)
+                    {
+                        KThread next = context.PriorityQueue.Reschedule(
+                            currentTop.DynamicPriority, core, currentTop);
+                        if (next != currentTop)
+                        {
+                            context.ThreadReselectionRequested = true;
+                        }
+                    }
                 }
 
                 context.CriticalSection.Leave();

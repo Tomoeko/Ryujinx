@@ -290,7 +290,7 @@ namespace Ryujinx.HLE.HOS.Kernel.SupervisorCall
                     $"[DIAG] SendSync t={curThread.ThreadUid} handle=0x{handle:X} elapsed={sw.ElapsedMilliseconds}ms PC=0x{curThread.Context.Pc:X}");
             }
             // One-shot: after 8s, dump ALL thread PCs
-            if (bootMs > 8000 && !_diagDumped)
+            if (bootMs > 5000 && !_diagDumped)
             {
                 _diagDumped = true;
                 try
@@ -309,7 +309,7 @@ namespace Ryujinx.HLE.HOS.Kernel.SupervisorCall
                                 if (thr != null)
                                 {
                                     Logger.Warning?.Print(LogClass.KernelSvc,
-                                        $"[DIAG-THR] handle=0x{h:X} uid={thr.ThreadUid} SchedFlags={thr.SchedFlags} ActiveCore={thr.ActiveCore} PC=0x{thr.Context.Pc:X} LR=0x{thr.Context.GetX(30):X}");
+                                        $"[DIAG-THR] handle=0x{h:X} uid={thr.ThreadUid} SchedFlags={thr.SchedFlags} ActiveCore={thr.ActiveCore} Prio={thr.DynamicPriority} PC=0x{thr.Context.Pc:X} LR=0x{thr.Context.GetX(30):X}");
                                 }
                             }
                             catch { }
