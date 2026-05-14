@@ -228,9 +228,12 @@ namespace Ryujinx.Headless.SDL2
         [Option("ignore-missing-services", Required = false, Default = false, HelpText = "Enable ignoring missing services.")]
         public bool IgnoreMissingServices { get; set; }
 
+        [Option("install-firmware", Required = false, Default = null, HelpText = "Install firmware from a file (NSP/XCI/ZIP) or directory, then exit.")]
+        public string InstallFirmwarePath { get; set; }
+
         // Values
 
-        [Value(0, MetaName = "input", HelpText = "Input to load.", Required = true)]
+        [Value(0, MetaName = "input", HelpText = "Input to load.", Required = false)]
         public string InputPath { get; set; }
     }
 }

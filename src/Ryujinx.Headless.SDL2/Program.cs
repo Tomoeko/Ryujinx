@@ -360,6 +360,53 @@ namespace Ryujinx.Headless.SDL2
 
             GraphicsConfig.EnableShaderCache = true;
 
+            // Handle firmware installation
+            if (!string.IsNullOrEmpty(option.InstallFirmwarePath))
+            {
+                // Enable logging for firmware install path
+                Logger.SetEnable(LogLevel.Info, true);
+                Logger.SetEnable(LogLevel.Warning, true);
+                Logger.SetEnable(LogLevel.Error, true);
+                Logger.SetEnable(LogLevel.Debug, true);
+                Logger.AddTarget(new AsyncLogTargetWrapper(
+                    new ConsoleLogTarget("console"),
+                    1000,
+                    AsyncLogTargetOverflowAction.Block
+                ));
+                Logger.Info?.Print(LogClass.Application, $"Installing firmware from: {option.InstallFirmwarePath}");
+
+                try
+                {
+                    SystemVersion version = _contentManager.VerifyFirmwarePackage(option.InstallFirmwarePath);
+
+                    if (version != null)
+                    {
+                        Logger.Info?.Print(LogClass.Application, $"Firmware version: {version.VersionString}");
+                    }
+
+                    _contentManager.InstallFirmware(option.InstallFirmwarePath);
+
+                    Logger.Info?.Print(LogClass.Application, "Firmware installed successfully!");
+
+                    SystemVersion installed = _contentManager.GetCurrentFirmwareVersion();
+                    if (installed != null)
+                    {
+                        Logger.Info?.Print(LogClass.Application, $"Installed firmware version: {installed.VersionString}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logger.Error?.Print(LogClass.Application, $"Firmware installation failed: {ex.Message}");
+
+                    if (ex.InnerException != null)
+                    {
+                        Logger.Error?.Print(LogClass.Application, $"Inner: {ex.InnerException.Message}");
+                    }
+                }
+
+                return;
+            }
+
             if (OperatingSystem.IsMacOS())
             {
                 if (option.GraphicsBackend == GraphicsBackend.OpenGl)

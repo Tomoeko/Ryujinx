@@ -37,6 +37,10 @@ namespace Ryujinx.HLE.HOS.Services.Ptm.Fgm
         // Set(nn::fgm::Setting min, nn::fgm::Setting max)
         public ResultCode Set(ServiceCtx context)
         {
+            // Signal the event immediately so the game doesn't block
+            // waiting for a clock change acknowledgment.
+            _event.WritableEvent.Signal();
+
             Logger.Stub?.PrintStub(LogClass.ServicePtm);
 
             return ResultCode.Success;

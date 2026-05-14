@@ -550,6 +550,12 @@ namespace Ryujinx.HLE.FileSystem
                     Xci xci = new(_virtualFileSystem.KeySet, file.AsStorage());
                     InstallFromCart(xci, temporaryDirectory);
                     break;
+                case ".nsp":
+                    var nspPfs = new PartitionFileSystem();
+                    nspPfs.Initialize(file.AsStorage()).ThrowIfFailure();
+                    _virtualFileSystem.ImportTickets(nspPfs);
+                    InstallFromNsp(nspPfs, temporaryDirectory);
+                    break;
                 default:
                     throw new InvalidFirmwarePackageException("Input file is not a valid firmware package");
             }
@@ -597,6 +603,120 @@ namespace Ryujinx.HLE.FileSystem
                 throw new Exception("Update not found in xci file.");
             }
         }
+
+        private void InstallFromNsp(PartitionFileSystem nspFs, string temporaryDirectory)
+        {
+            // Count NCAs in the outer NSP
+            var ncaEntries = nspFs.EnumerateEntries("/", "*.nca").ToList();
+
+            if (ncaEntries.Count > 10)
+            {
+                // This NSP directly contains firmware NCAs — install them
+                Logger.Info?.Print(LogClass.ServiceFs,
+                    $"NSP contains {ncaEntries.Count} NCAs, installing directly as firmware package.");
+                InstallFromPartition(nspFs, temporaryDirectory);
+                return;
+            }
+
+            // This is a firmware updater NSP — firmware NCAs are nested inside
+            // the largest NCA's data section as an inner PFS0.
+            Logger.Info?.Print(LogClass.ServiceFs,
+                $"NSP contains {ncaEntries.Count} NCAs — searching for nested firmware content.");
+
+            foreach (var entry in ncaEntries)
+            {
+                IStorage ncaStorage = OpenPossibleFragmentedFile(nspFs, entry.FullPath, OpenMode.Read).AsStorage();
+
+                try
+                {
+                    Nca nca = new(_virtualFileSystem.KeySet, ncaStorage);
+
+                    Logger.Info?.Print(LogClass.ServiceFs,
+                        $"NCA: {entry.Name} Type={nca.Header.ContentType} TitleId={nca.Header.TitleId:X16}");
+
+                    // Try each section type to find the inner firmware PFS0
+                    NcaSectionType[] sectionTypes = { NcaSectionType.Data, NcaSectionType.Code };
+
+                    foreach (var sectionType in sectionTypes)
+                    {
+                        try
+                        {
+                            IFileSystem innerFs = nca.OpenFileSystem(sectionType, IntegrityCheckLevel.None);
+
+                            // Debug: enumerate ALL files inside this section
+                            var allFiles = innerFs.EnumerateEntries("/", "*").ToList();
+                            Logger.Info?.Print(LogClass.ServiceFs,
+                                $"Section {sectionType} of {entry.Name}: {allFiles.Count} total entries");
+                            foreach (var innerEntry in allFiles.Take(20))
+                            {
+                                Logger.Debug?.Print(LogClass.ServiceFs,
+                                    $"  -> {innerEntry.FullPath} (Size={innerEntry.Size}, Dir={innerEntry.Type == LibHac.Fs.DirectoryEntryType.Directory})");
+                            }
+
+                            // Check for .initimg files (dev firmware init images containing NCAs as PFS0)
+                            var initImgEntries = allFiles.Where(e => e.Name.EndsWith(".initimg")).ToList();
+                            foreach (var initImgEntry in initImgEntries)
+                            {
+                                Logger.Info?.Print(LogClass.ServiceFs,
+                                    $"Found init image: {initImgEntry.FullPath} ({initImgEntry.Size / (1024 * 1024)} MB)");
+
+                                try
+                                {
+                                    using var initImgFile = new UniqueRef<IFile>();
+                                    innerFs.OpenFile(ref initImgFile.Ref, initImgEntry.FullPath.ToU8Span(), OpenMode.Read).ThrowIfFailure();
+
+                                    var initImgPfs = new PartitionFileSystem();
+                                    initImgPfs.Initialize(initImgFile.Get.AsStorage()).ThrowIfFailure();
+
+                                    var fwNcas = initImgPfs.EnumerateEntries("/", "*.nca").ToList();
+                                    Logger.Info?.Print(LogClass.ServiceFs,
+                                        $"Init image contains {fwNcas.Count} NCA entries");
+
+                                    if (fwNcas.Count > 10)
+                                    {
+                                        Logger.Info?.Print(LogClass.ServiceFs,
+                                            $"Installing {fwNcas.Count} firmware NCAs from {initImgEntry.Name}...");
+                                        InstallFromPartition(initImgPfs, temporaryDirectory);
+                                        return;
+                                    }
+                                }
+                                catch (Exception initEx)
+                                {
+                                    Logger.Warning?.Print(LogClass.ServiceFs,
+                                        $"Failed to parse initimg as PFS0: {initEx.Message}");
+                                }
+                            }
+
+                            var innerNcas = innerFs.EnumerateEntries("/", "*.nca").ToList();
+
+                            if (innerNcas.Count > 10)
+                            {
+                                Logger.Info?.Print(LogClass.ServiceFs,
+                                    $"Found {innerNcas.Count} firmware NCAs inside {entry.Name} section {sectionType}. Installing...");
+                                InstallFromPartition(innerFs, temporaryDirectory);
+                                return;
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Logger.Debug?.Print(LogClass.ServiceFs,
+                                $"Could not open section {sectionType} of {entry.Name}: {ex.Message}");
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logger.Warning?.Print(LogClass.ServiceFs,
+                        $"Failed to parse NCA {entry.Name}: {ex.Message}");
+                }
+            }
+
+            // Fallback — just install the NCAs directly from the outer NSP
+            Logger.Warning?.Print(LogClass.ServiceFs,
+                "No nested firmware content found. Installing outer NCAs directly.");
+            InstallFromPartition(nspFs, temporaryDirectory);
+        }
+
 
         private static void InstallFromZip(ZipArchive archive, string temporaryDirectory)
         {
@@ -711,6 +831,11 @@ namespace Ryujinx.HLE.FileSystem
                     {
                         throw new InvalidFirmwarePackageException("Update not found in xci file.");
                     }
+                case ".nsp":
+                    var nspPfs = new PartitionFileSystem();
+                    nspPfs.Initialize(file.AsStorage()).ThrowIfFailure();
+                    _virtualFileSystem.ImportTickets(nspPfs);
+                    return VerifyAndGetVersionNsp(nspPfs);
                 default:
                     break;
             }
@@ -719,6 +844,71 @@ namespace Ryujinx.HLE.FileSystem
             {
                 return VerifyAndGetVersion(new LocalFileSystem(firmwareDirectory));
             }
+
+            SystemVersion VerifyAndGetVersionNsp(PartitionFileSystem nspFs)
+            {
+                var ncaEntries = nspFs.EnumerateEntries("/", "*.nca").ToList();
+
+                if (ncaEntries.Count > 10)
+                {
+                    return VerifyAndGetVersion(nspFs);
+                }
+
+                // Probe inner NCA data sections for nested firmware
+                foreach (var entry in ncaEntries)
+                {
+                    IStorage ncaStorage = OpenPossibleFragmentedFile(nspFs, entry.FullPath, OpenMode.Read).AsStorage();
+
+                    try
+                    {
+                        Nca nca = new(_virtualFileSystem.KeySet, ncaStorage);
+
+                        NcaSectionType[] sectionTypes = { NcaSectionType.Data, NcaSectionType.Code };
+
+                        foreach (var sectionType in sectionTypes)
+                        {
+                            try
+                            {
+                                IFileSystem innerFs = nca.OpenFileSystem(sectionType, IntegrityCheckLevel.None);
+
+                                // Check for .initimg (dev firmware init image containing NCAs as PFS0)
+                                var initImgEntries = innerFs.EnumerateEntries("/", "*.initimg").ToList();
+                                foreach (var initImgEntry in initImgEntries)
+                                {
+                                    try
+                                    {
+                                        using var initImgFile = new UniqueRef<IFile>();
+                                        innerFs.OpenFile(ref initImgFile.Ref, initImgEntry.FullPath.ToU8Span(), OpenMode.Read).ThrowIfFailure();
+
+                                        var initImgPfs = new PartitionFileSystem();
+                                        initImgPfs.Initialize(initImgFile.Get.AsStorage()).ThrowIfFailure();
+
+                                        var fwNcas = initImgPfs.EnumerateEntries("/", "*.nca").ToList();
+                                        if (fwNcas.Count > 10)
+                                        {
+                                            return VerifyAndGetVersion(initImgPfs);
+                                        }
+                                    }
+                                    catch { /* initimg parse failed */ }
+                                }
+
+                                var innerNcas = innerFs.EnumerateEntries("/", "*.nca").ToList();
+
+                                if (innerNcas.Count > 10)
+                                {
+                                    return VerifyAndGetVersion(innerFs);
+                                }
+                            }
+                            catch { /* section not available */ }
+                        }
+                    }
+                    catch { /* NCA parse failed */ }
+                }
+
+                // Fallback
+                return VerifyAndGetVersion(nspFs);
+            }
+
 
             SystemVersion VerifyAndGetVersionZip(ZipArchive archive)
             {
