@@ -265,6 +265,15 @@ namespace Ryujinx.HLE.HOS.Kernel.SupervisorCall
             }
 
             KThread curThread = KernelStatic.GetCurrentThread();
+            // ENTRY: catch thread 56's blocking SendSync
+            {
+                long bootE3 = _diagBootSw.ElapsedMilliseconds;
+                if (bootE3 < 12000 && curThread.ThreadUid == 56)
+                {
+                    Logger.Warning?.Print(LogClass.KernelSvc,
+                        $"[DIAG] SendSync ENTER t=56 handle=0x{handle:X} boot={bootE3}ms");
+                }
+            }
             var sw = Stopwatch.StartNew();
             Result result = session.SendSyncRequest();
             sw.Stop();
@@ -273,9 +282,9 @@ namespace Ryujinx.HLE.HOS.Kernel.SupervisorCall
                 Logger.Warning?.Print(LogClass.KernelSvc,
                     $"[DIAG] SendSyncRequest handle=0x{handle:X} thread={curThread.ThreadUid} took {sw.ElapsedMilliseconds}ms result={result}");
             }
-            // After 5s of boot, log all SendSyncRequest calls for 2s to see which threads are active
+            // Log SendSync during 1-12s to catch thread 56's final blocking call
             long bootMs = _diagBootSw.ElapsedMilliseconds;
-            if (bootMs > 5000 && bootMs < 7000)
+            if (bootMs > 1000 && bootMs < 12000 && (curThread.ThreadUid == 56 || curThread.ThreadUid == 64))
             {
                 Logger.Warning?.Print(LogClass.KernelSvc,
                     $"[DIAG] SendSync t={curThread.ThreadUid} handle=0x{handle:X} elapsed={sw.ElapsedMilliseconds}ms PC=0x{curThread.Context.Pc:X}");
@@ -286,7 +295,28 @@ namespace Ryujinx.HLE.HOS.Kernel.SupervisorCall
                 _diagDumped = true;
                 try
                 {
-                    for (int sample = 0; sample < 5; sample++)
+                    // Try to find thread 56 (Prepare Thread) by handle
+                    KProcess proc = KernelStatic.GetCurrentProcess();
+                    if (proc != null)
+                    {
+                        // Known thread handles from CreateThread log
+                        int[] handles = { 0xF001B, 0x118020, 0x120021, 0x128022, 0x130023, 0x138024, 0x140025, 0x158027, 0x17002A, 0x17802B, 0x18002C, 0x18802D, 0x1E002F, 0x1E8031, 0x200033, 0x260035, 0x268032, 0xE0019 };
+                        foreach (int h in handles)
+                        {
+                            try
+                            {
+                                KThread thr = proc.HandleTable.GetKThread(h);
+                                if (thr != null)
+                                {
+                                    Logger.Warning?.Print(LogClass.KernelSvc,
+                                        $"[DIAG-THR] handle=0x{h:X} uid={thr.ThreadUid} SchedFlags={thr.SchedFlags} ActiveCore={thr.ActiveCore} PC=0x{thr.Context.Pc:X} LR=0x{thr.Context.GetX(30):X}");
+                                }
+                            }
+                            catch { }
+                        }
+                    }
+
+                    for (int sample = 0; sample < 3; sample++)
                     {
                         for (int core = 0; core < 4; core++)
                         {
@@ -302,7 +332,7 @@ namespace Ryujinx.HLE.HOS.Kernel.SupervisorCall
                             }
                             catch { }
                         }
-                        if (sample < 4) System.Threading.Thread.Sleep(200);
+                        if (sample < 2) System.Threading.Thread.Sleep(200);
                     }
                 }
                 catch (Exception ex)
@@ -2576,6 +2606,9 @@ namespace Ryujinx.HLE.HOS.Kernel.SupervisorCall
                 KProcess process = KernelStatic.GetCurrentProcess();
 
                 result = process.HandleTable.GenerateHandle(thread, out handle);
+                
+                Logger.Warning?.Print(LogClass.KernelSvc,
+                    $"[DIAG] CreateThread uid={thread.ThreadUid} entry=0x{entrypoint:X} prio={priority} core={cpuCore} handle=0x{handle:X}");
             }
             else
             {
@@ -2626,6 +2659,14 @@ namespace Ryujinx.HLE.HOS.Kernel.SupervisorCall
         [Svc(0xb)]
         public void SleepThread(long timeout)
         {
+            // Log ALL sleep calls during 1-12s boot window
+            long bootMs4 = _diagBootSw.ElapsedMilliseconds;
+            if (bootMs4 > 1000 && bootMs4 < 12000)
+            {
+                KThread ct = KernelStatic.GetCurrentThread();
+                Logger.Warning?.Print(LogClass.KernelSvc,
+                    $"[DIAG] SleepThread t={ct.ThreadUid} timeout={timeout}");
+            }
             if (timeout < 1)
             {
                 switch (timeout)
@@ -2775,6 +2816,12 @@ namespace Ryujinx.HLE.HOS.Kernel.SupervisorCall
             if (thread != null)
             {
                 threadUid = thread.ThreadUid;
+
+                // Force kernel-level priority queue rotation.
+                // This is critical: the HOS preemption timer only rotates priority-59 threads,
+                // but game threads run at priority ~28-44. Without this, a thread calling
+                // GetThreadId in a tight loop monopolizes its core.
+                KScheduler.Yield(_context);
 
                 return Result.Success;
             }
@@ -2947,11 +2994,31 @@ namespace Ryujinx.HLE.HOS.Kernel.SupervisorCall
                 timeout += KTimeManager.DefaultTimeIncrementNanoseconds;
             }
 
+            // ENTRY logging: catch guest threads entering blocking waits
+            {
+                long bootE = _diagBootSw.ElapsedMilliseconds;
+                if (bootE < 12000 && currentThread.ThreadUid >= 52 && (timeout < 0 || timeout > 1000000000))
+                {
+                    Logger.Warning?.Print(LogClass.KernelSvc,
+                        $"[DIAG] WaitSync ENTER t={currentThread.ThreadUid} handles={handles.Length} timeout={timeout} boot={bootE}ms");
+                }
+            }
+
+            var sw3 = Stopwatch.StartNew();
             Result result = _context.Synchronization.WaitFor(syncObjs, timeout, out handleIndex);
+            sw3.Stop();
 
             if (result == KernelResult.PortRemoteClosed)
             {
                 result = Result.Success;
+            }
+
+            // Log any WaitSync that blocks >2s, or all WaitSync during the 5-10s window
+            long bootMs3 = _diagBootSw.ElapsedMilliseconds;
+            if (sw3.ElapsedMilliseconds > 2000 || (bootMs3 > 5000 && bootMs3 < 10000))
+            {
+                Logger.Warning?.Print(LogClass.KernelSvc,
+                    $"[DIAG] WaitSync t={currentThread.ThreadUid} handles={handles.Length} timeout={timeout} elapsed={sw3.ElapsedMilliseconds}ms result={result}");
             }
 
             for (int index = 0; index < handles.Length; index++)
@@ -3003,7 +3070,7 @@ namespace Ryujinx.HLE.HOS.Kernel.SupervisorCall
                     $"[DIAG] ArbitrateLock mutex=0x{mutexAddress:X} owner=0x{ownerHandle:X} thread={curThread.ThreadUid} took {sw.ElapsedMilliseconds}ms result={result}");
             }
             long bootMs2 = _diagBootSw.ElapsedMilliseconds;
-            if (bootMs2 > 5000 && bootMs2 < 7000)
+            if (bootMs2 > 1000 && bootMs2 < 12000)
             {
                 Logger.Warning?.Print(LogClass.KernelSvc,
                     $"[DIAG] ArbLock t={curThread.ThreadUid} mutex=0x{mutexAddress:X} elapsed={sw.ElapsedMilliseconds}ms");
@@ -3054,6 +3121,16 @@ namespace Ryujinx.HLE.HOS.Kernel.SupervisorCall
                 timeout += KTimeManager.DefaultTimeIncrementNanoseconds;
             }
 
+            // ENTRY logging for condvar waits
+            {
+                long bootE2 = _diagBootSw.ElapsedMilliseconds;
+                if (bootE2 < 12000 && (timeout < 0 || timeout > 1000000000))
+                {
+                    Logger.Warning?.Print(LogClass.KernelSvc,
+                        $"[DIAG] CondVar ENTER t={curThread.ThreadUid} mutex=0x{mutexAddress:X} condvar=0x{condVarAddress:X} timeout={timeout} boot={bootE2}ms");
+                }
+            }
+
             var sw = Stopwatch.StartNew();
             Result result = currentProcess.AddressArbiter.WaitProcessWideKeyAtomic(
                 mutexAddress,
@@ -3061,10 +3138,11 @@ namespace Ryujinx.HLE.HOS.Kernel.SupervisorCall
                 handle,
                 timeout);
             sw.Stop();
-            if (sw.ElapsedMilliseconds > 2000)
+            long bootMs5 = _diagBootSw.ElapsedMilliseconds;
+            if (sw.ElapsedMilliseconds > 2000 || (bootMs5 > 1000 && bootMs5 < 12000))
             {
                 Logger.Warning?.Print(LogClass.KernelSvc,
-                    $"[DIAG] WaitProcessWideKeyAtomic mutex=0x{mutexAddress:X} condvar=0x{condVarAddress:X} thread={curThread.ThreadUid} timeout={timeout} took {sw.ElapsedMilliseconds}ms result={result}");
+                    $"[DIAG] CondVar t={curThread.ThreadUid} mutex=0x{mutexAddress:X} condvar=0x{condVarAddress:X} timeout={timeout} elapsed={sw.ElapsedMilliseconds}ms result={result}");
             }
             return result;
         }
@@ -3112,10 +3190,11 @@ namespace Ryujinx.HLE.HOS.Kernel.SupervisorCall
                 _ => KernelResult.InvalidEnumValue,
             };
             sw.Stop();
-            if (sw.ElapsedMilliseconds > 2000)
+            long bootMs6 = _diagBootSw.ElapsedMilliseconds;
+            if (sw.ElapsedMilliseconds > 2000 || (bootMs6 > 1000 && bootMs6 < 12000))
             {
                 Logger.Warning?.Print(LogClass.KernelSvc,
-                    $"[DIAG] WaitForAddress addr=0x{address:X} type={type} val={value} thread={curThread.ThreadUid} timeout={timeout} took {sw.ElapsedMilliseconds}ms result={result}");
+                    $"[DIAG] WaitForAddr t={curThread.ThreadUid} addr=0x{address:X} type={type} val={value} timeout={timeout} elapsed={sw.ElapsedMilliseconds}ms result={result}");
             }
             return result;
         }
