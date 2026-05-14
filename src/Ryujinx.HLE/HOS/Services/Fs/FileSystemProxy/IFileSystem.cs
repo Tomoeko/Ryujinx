@@ -3,6 +3,11 @@ using LibHac.Common;
 using LibHac.Fs;
 using LibHac.Fs.Fsa;
 using Ryujinx.Common.Logging;
+using Ryujinx.Common.Memory;
+using System;
+using System.Runtime.InteropServices;
+using System.Text;
+using System.Xml.Linq;
 using Path = LibHac.FsSrv.Sf.Path;
 
 namespace Ryujinx.HLE.HOS.Services.Fs.FileSystemProxy
@@ -10,10 +15,12 @@ namespace Ryujinx.HLE.HOS.Services.Fs.FileSystemProxy
     class IFileSystem : DisposableIpcService
     {
         private SharedRef<LibHac.FsSrv.Sf.IFileSystem> _fileSystem;
+        private bool _isHostFileSystem;
 
-        public IFileSystem(ref SharedRef<LibHac.FsSrv.Sf.IFileSystem> provider)
+        public IFileSystem(ref SharedRef<LibHac.FsSrv.Sf.IFileSystem> provider, bool isHostFileSystem = false)
         {
             _fileSystem = SharedRef<LibHac.FsSrv.Sf.IFileSystem>.CreateMove(ref provider);
+            _isHostFileSystem = isHostFileSystem;
         }
 
         public SharedRef<LibHac.FsSrv.Sf.IFileSystem> GetBaseFileSystem()
@@ -31,8 +38,20 @@ namespace Ryujinx.HLE.HOS.Services.Fs.FileSystemProxy
             context.RequestData.BaseStream.Position += 4;
 
             long size = context.RequestData.ReadInt64();
+            var str = Encoding.ASCII.GetString(name.Str);
+            if (_isHostFileSystem && str.ToLower().StartsWith("c:/"))
+            {
+                var newPathStr = Encoding.ASCII.GetBytes("/host/" + str.Substring(3));
+                var pathBuffer = new ReadOnlySpan<byte>(newPathStr);
+                ref readonly Path fixName = ref MemoryMarshal.Cast<byte, Path>(pathBuffer)[0];
 
-            return (ResultCode)_fileSystem.Get.CreateFile(in name, size, createOption).Value;
+                return (ResultCode)_fileSystem.Get.CreateFile(in fixName, size, createOption).Value;
+            }
+            else
+            {
+                return (ResultCode)_fileSystem.Get.CreateFile(in name, size, createOption).Value;
+            }
+
         }
 
         [CommandCmif(1)]
@@ -40,8 +59,20 @@ namespace Ryujinx.HLE.HOS.Services.Fs.FileSystemProxy
         public ResultCode DeleteFile(ServiceCtx context)
         {
             ref readonly Path name = ref FileSystemProxyHelper.GetSfPath(context);
+            var str = Encoding.ASCII.GetString(name.Str);
+            if (_isHostFileSystem && str.ToLower().StartsWith("c:/"))
+            {
+                var newPathStr = Encoding.ASCII.GetBytes("/host/" + str.Substring(3));
+                var pathBuffer = new ReadOnlySpan<byte>(newPathStr);
+                ref readonly Path fixName = ref MemoryMarshal.Cast<byte, Path>(pathBuffer)[0];
 
-            return (ResultCode)_fileSystem.Get.DeleteFile(in name).Value;
+                return (ResultCode)_fileSystem.Get.DeleteFile(in fixName).Value;
+            }
+            else
+            {
+                return (ResultCode)_fileSystem.Get.DeleteFile(in name).Value;
+            }
+
         }
 
         [CommandCmif(2)]
@@ -49,8 +80,20 @@ namespace Ryujinx.HLE.HOS.Services.Fs.FileSystemProxy
         public ResultCode CreateDirectory(ServiceCtx context)
         {
             ref readonly Path name = ref FileSystemProxyHelper.GetSfPath(context);
+            var str = Encoding.ASCII.GetString(name.Str);
+            if (_isHostFileSystem && str.ToLower().StartsWith("c:/"))
+            {
+                var newPathStr = Encoding.ASCII.GetBytes("/host/" + str.Substring(3));
+                var pathBuffer = new ReadOnlySpan<byte>(newPathStr);
+                ref readonly Path fixName = ref MemoryMarshal.Cast<byte, Path>(pathBuffer)[0];
 
-            return (ResultCode)_fileSystem.Get.CreateDirectory(in name).Value;
+                return (ResultCode)_fileSystem.Get.CreateDirectory(in fixName).Value;
+            }
+            else
+            {
+                return (ResultCode)_fileSystem.Get.CreateDirectory(in name).Value;
+            }
+
         }
 
         [CommandCmif(3)]
@@ -58,8 +101,19 @@ namespace Ryujinx.HLE.HOS.Services.Fs.FileSystemProxy
         public ResultCode DeleteDirectory(ServiceCtx context)
         {
             ref readonly Path name = ref FileSystemProxyHelper.GetSfPath(context);
+            var str = Encoding.ASCII.GetString(name.Str);
+            if (_isHostFileSystem && str.ToLower().StartsWith("c:/"))
+            {
+                var newPathStr = Encoding.ASCII.GetBytes("/host/" + str.Substring(3));
+                var pathBuffer = new ReadOnlySpan<byte>(newPathStr);
+                ref readonly Path fixName = ref MemoryMarshal.Cast<byte, Path>(pathBuffer)[0];
 
-            return (ResultCode)_fileSystem.Get.DeleteDirectory(in name).Value;
+                return (ResultCode)_fileSystem.Get.DeleteDirectory(in fixName).Value;
+            }
+            else
+            {
+                return (ResultCode)_fileSystem.Get.DeleteDirectory(in name).Value;
+            }
         }
 
         [CommandCmif(4)]
@@ -67,8 +121,19 @@ namespace Ryujinx.HLE.HOS.Services.Fs.FileSystemProxy
         public ResultCode DeleteDirectoryRecursively(ServiceCtx context)
         {
             ref readonly Path name = ref FileSystemProxyHelper.GetSfPath(context);
+            var str = Encoding.ASCII.GetString(name.Str);
+            if (_isHostFileSystem && str.ToLower().StartsWith("c:/"))
+            {
+                var newPathStr = Encoding.ASCII.GetBytes("/host/" + str.Substring(3));
+                var pathBuffer = new ReadOnlySpan<byte>(newPathStr);
+                ref readonly Path fixName = ref MemoryMarshal.Cast<byte, Path>(pathBuffer)[0];
 
-            return (ResultCode)_fileSystem.Get.DeleteDirectoryRecursively(in name).Value;
+                return (ResultCode)_fileSystem.Get.DeleteDirectoryRecursively(in fixName).Value;
+            }
+            else
+            {
+                return (ResultCode)_fileSystem.Get.DeleteDirectoryRecursively(in name).Value;
+            }
         }
 
         [CommandCmif(5)]
@@ -77,8 +142,42 @@ namespace Ryujinx.HLE.HOS.Services.Fs.FileSystemProxy
         {
             ref readonly Path currentName = ref FileSystemProxyHelper.GetSfPath(context, index: 0);
             ref readonly Path newName = ref FileSystemProxyHelper.GetSfPath(context, index: 1);
+            if (_isHostFileSystem)
+            {
+                var currentStr = Encoding.ASCII.GetString(currentName.Str);
+                var newStr = Encoding.ASCII.GetString(newName.Str);
+                var fixCurPathStr = Encoding.ASCII.GetBytes("/host/" + currentStr.Substring(3));
+                var fixCurPathBuffer = new ReadOnlySpan<byte>(fixCurPathStr);
+                var fixNewPathStr = Encoding.ASCII.GetBytes("/host/" + newStr.Substring(3));
+                var fixNewPathBuffer = new ReadOnlySpan<byte>(fixNewPathStr);
 
-            return (ResultCode)_fileSystem.Get.RenameFile(in currentName, in newName).Value;
+                ref readonly Path fixCurName = ref MemoryMarshal.Cast<byte, Path>(fixCurPathStr)[0];
+                ref readonly Path fixNewName = ref MemoryMarshal.Cast<byte, Path>(fixNewPathBuffer)[0];
+
+                bool isCDriveCur = currentStr.ToLower().StartsWith("c:/");
+                bool isCDriveNew = currentStr.ToLower().StartsWith("c:/");
+
+                if (isCDriveCur && isCDriveNew)
+                {
+                    return (ResultCode)_fileSystem.Get.RenameFile(in fixCurName, in fixNewName).Value;
+                }
+                else if (isCDriveCur)
+                {
+                    return (ResultCode)_fileSystem.Get.RenameFile(in fixCurName, in newName).Value;
+                }
+                else if (isCDriveNew)
+                {
+                    return (ResultCode)_fileSystem.Get.RenameFile(in currentName, in fixNewName).Value;
+                }
+                else
+                {
+                    return (ResultCode)_fileSystem.Get.RenameFile(in currentName, in newName).Value;
+                }
+            }
+            else
+            {
+                return (ResultCode)_fileSystem.Get.RenameFile(in currentName, in newName).Value;
+            }
         }
 
         [CommandCmif(6)]
@@ -88,7 +187,42 @@ namespace Ryujinx.HLE.HOS.Services.Fs.FileSystemProxy
             ref readonly Path currentName = ref FileSystemProxyHelper.GetSfPath(context, index: 0);
             ref readonly Path newName = ref FileSystemProxyHelper.GetSfPath(context, index: 1);
 
-            return (ResultCode)_fileSystem.Get.RenameDirectory(in currentName, in newName).Value;
+            if (_isHostFileSystem)
+            {
+                var currentStr = Encoding.ASCII.GetString(currentName.Str);
+                var newStr = Encoding.ASCII.GetString(newName.Str);
+                var fixCurPathStr = Encoding.ASCII.GetBytes("/host/" + currentStr.Substring(3));
+                var fixCurPathBuffer = new ReadOnlySpan<byte>(fixCurPathStr);
+                var fixNewPathStr = Encoding.ASCII.GetBytes("/host/" + newStr.Substring(3));
+                var fixNewPathBuffer = new ReadOnlySpan<byte>(fixNewPathStr);
+
+                ref readonly Path fixCurName = ref MemoryMarshal.Cast<byte, Path>(fixCurPathStr)[0];
+                ref readonly Path fixNewName = ref MemoryMarshal.Cast<byte, Path>(fixNewPathBuffer)[0];
+
+                bool isCDriveCur = currentStr.ToLower().StartsWith("c:/");
+                bool isCDriveNew = currentStr.ToLower().StartsWith("c:/");
+
+                if (isCDriveCur && isCDriveNew)
+                {
+                    return (ResultCode)_fileSystem.Get.RenameDirectory(in fixCurName, in fixNewName).Value;
+                }
+                else if (isCDriveCur)
+                {
+                    return (ResultCode)_fileSystem.Get.RenameDirectory(in fixCurName, in newName).Value;
+                }
+                else if (isCDriveNew)
+                {
+                    return (ResultCode)_fileSystem.Get.RenameDirectory(in currentName, in fixNewName).Value;
+                }
+                else
+                {
+                    return (ResultCode)_fileSystem.Get.RenameDirectory(in currentName, in newName).Value;
+                }
+            }
+            else
+            {
+                return (ResultCode)_fileSystem.Get.RenameDirectory(in currentName, in newName).Value;
+            }
         }
 
         [CommandCmif(7)]
@@ -96,12 +230,27 @@ namespace Ryujinx.HLE.HOS.Services.Fs.FileSystemProxy
         public ResultCode GetEntryType(ServiceCtx context)
         {
             ref readonly Path name = ref FileSystemProxyHelper.GetSfPath(context);
+            var str = Encoding.ASCII.GetString(name.Str);
+            if (_isHostFileSystem && str.ToLower().StartsWith("c:/"))
+            {
+                var newPathStr = Encoding.ASCII.GetBytes("/host/" + str.Substring(3));
+                var pathBuffer = new ReadOnlySpan<byte>(newPathStr);
+                ref readonly Path fixName = ref MemoryMarshal.Cast<byte, Path>(pathBuffer)[0];
 
-            Result result = _fileSystem.Get.GetEntryType(out uint entryType, in name);
+                Result result = _fileSystem.Get.GetEntryType(out uint entryType, in fixName);
 
-            context.ResponseData.Write((int)entryType);
+                context.ResponseData.Write((int)entryType);
 
-            return (ResultCode)result.Value;
+                return (ResultCode)result.Value;
+            }
+            else
+            {
+                Result result = _fileSystem.Get.GetEntryType(out uint entryType, in name);
+
+                context.ResponseData.Write((int)entryType);
+
+                return (ResultCode)result.Value;
+            }
         }
 
         [CommandCmif(8)]
@@ -112,17 +261,38 @@ namespace Ryujinx.HLE.HOS.Services.Fs.FileSystemProxy
 
             ref readonly Path name = ref FileSystemProxyHelper.GetSfPath(context);
             using var file = new SharedRef<LibHac.FsSrv.Sf.IFile>();
-
-            Result result = _fileSystem.Get.OpenFile(ref file.Ref, in name, mode);
-
-            if (result.IsSuccess())
+            var str = Encoding.ASCII.GetString(name.Str).ToLower();
+            if (_isHostFileSystem && str.ToLower().StartsWith("c:/"))
             {
-                IFile fileInterface = new(ref file.Ref);
+                var newPathStr = Encoding.ASCII.GetBytes("/host/" + str.Substring(3));
+                var pathBuffer = new ReadOnlySpan<byte>(newPathStr);
+                ref readonly Path fixName = ref MemoryMarshal.Cast<byte, Path>(pathBuffer)[0];
 
-                MakeObject(context, fileInterface);
+                Result result = _fileSystem.Get.OpenFile(ref file.Ref, in fixName, mode);
+
+                if (result.IsSuccess())
+                {
+                    IFile fileInterface = new(ref file.Ref);
+
+                    MakeObject(context, fileInterface);
+                }
+
+                return (ResultCode)result.Value;
+            }
+            else
+            {
+                Result result = _fileSystem.Get.OpenFile(ref file.Ref, in name, mode);
+
+                if (result.IsSuccess())
+                {
+                    IFile fileInterface = new(ref file.Ref);
+
+                    MakeObject(context, fileInterface);
+                }
+
+                return (ResultCode)result.Value;
             }
 
-            return (ResultCode)result.Value;
         }
 
         [CommandCmif(9)]
@@ -133,17 +303,37 @@ namespace Ryujinx.HLE.HOS.Services.Fs.FileSystemProxy
 
             ref readonly Path name = ref FileSystemProxyHelper.GetSfPath(context);
             using var dir = new SharedRef<LibHac.FsSrv.Sf.IDirectory>();
-
-            Result result = _fileSystem.Get.OpenDirectory(ref dir.Ref, name, mode);
-
-            if (result.IsSuccess())
+            var str = Encoding.ASCII.GetString(name.Str);
+            if (_isHostFileSystem && str.ToLower().StartsWith("c:/"))
             {
-                IDirectory dirInterface = new(ref dir.Ref);
+                var newPathStr = Encoding.ASCII.GetBytes("/host/" + str.Substring(3));
+                var pathBuffer = new ReadOnlySpan<byte>(newPathStr);
+                ref readonly Path fixName = ref MemoryMarshal.Cast<byte, Path>(pathBuffer)[0];
 
-                MakeObject(context, dirInterface);
+                Result result = _fileSystem.Get.OpenDirectory(ref dir.Ref, fixName, mode);
+
+                if (result.IsSuccess())
+                {
+                    IDirectory dirInterface = new(ref dir.Ref);
+
+                    MakeObject(context, dirInterface);
+                }
+
+                return (ResultCode)result.Value;
             }
+            else
+            {
+                Result result = _fileSystem.Get.OpenDirectory(ref dir.Ref, name, mode);
 
-            return (ResultCode)result.Value;
+                if (result.IsSuccess())
+                {
+                    IDirectory dirInterface = new(ref dir.Ref);
+
+                    MakeObject(context, dirInterface);
+                }
+
+                return (ResultCode)result.Value;
+            }
         }
 
         [CommandCmif(10)]
@@ -165,11 +355,27 @@ namespace Ryujinx.HLE.HOS.Services.Fs.FileSystemProxy
         {
             ref readonly Path name = ref FileSystemProxyHelper.GetSfPath(context);
 
-            Result result = _fileSystem.Get.GetFreeSpaceSize(out long size, in name);
+            var str = Encoding.ASCII.GetString(name.Str);
+            if (_isHostFileSystem && str.ToLower().StartsWith("c:/"))
+            {
+                var newPathStr = Encoding.ASCII.GetBytes("/host/" + str.Substring(3));
+                var pathBuffer = new ReadOnlySpan<byte>(newPathStr);
+                ref readonly Path fixName = ref MemoryMarshal.Cast<byte, Path>(pathBuffer)[0];
 
-            context.ResponseData.Write(size);
+                Result result = _fileSystem.Get.GetFreeSpaceSize(out long size, in fixName);
 
-            return (ResultCode)result.Value;
+                context.ResponseData.Write(size);
+
+                return (ResultCode)result.Value;
+            }
+            else
+            {
+                Result result = _fileSystem.Get.GetFreeSpaceSize(out long size, in name);
+
+                context.ResponseData.Write(size);
+
+                return (ResultCode)result.Value;
+            }
         }
 
         [CommandCmif(12)]
@@ -178,11 +384,27 @@ namespace Ryujinx.HLE.HOS.Services.Fs.FileSystemProxy
         {
             ref readonly Path name = ref FileSystemProxyHelper.GetSfPath(context);
 
-            Result result = _fileSystem.Get.GetTotalSpaceSize(out long size, in name);
+            var str = Encoding.ASCII.GetString(name.Str);
+            if (_isHostFileSystem && str.ToLower().StartsWith("c:/"))
+            {
+                var newPathStr = Encoding.ASCII.GetBytes("/host/" + str.Substring(3));
+                var pathBuffer = new ReadOnlySpan<byte>(newPathStr);
+                ref readonly Path fixName = ref MemoryMarshal.Cast<byte, Path>(pathBuffer)[0];
 
-            context.ResponseData.Write(size);
+                Result result = _fileSystem.Get.GetTotalSpaceSize(out long size, in fixName);
 
-            return (ResultCode)result.Value;
+                context.ResponseData.Write(size);
+
+                return (ResultCode)result.Value;
+            }
+            else
+            {
+                Result result = _fileSystem.Get.GetTotalSpaceSize(out long size, in name);
+
+                context.ResponseData.Write(size);
+
+                return (ResultCode)result.Value;
+            }
         }
 
         [CommandCmif(13)]
@@ -191,7 +413,19 @@ namespace Ryujinx.HLE.HOS.Services.Fs.FileSystemProxy
         {
             ref readonly Path name = ref FileSystemProxyHelper.GetSfPath(context);
 
-            return (ResultCode)_fileSystem.Get.CleanDirectoryRecursively(in name).Value;
+            var str = Encoding.ASCII.GetString(name.Str);
+            if (_isHostFileSystem && str.ToLower().StartsWith("c:/"))
+            {
+                var newPathStr = Encoding.ASCII.GetBytes("/host/" + str.Substring(3));
+                var pathBuffer = new ReadOnlySpan<byte>(newPathStr);
+                ref readonly Path fixName = ref MemoryMarshal.Cast<byte, Path>(pathBuffer)[0];
+
+                return (ResultCode)_fileSystem.Get.CleanDirectoryRecursively(in fixName).Value;
+            }
+            else
+            {
+                return (ResultCode)_fileSystem.Get.CleanDirectoryRecursively(in name).Value;
+            }
         }
 
         [CommandCmif(14)]
@@ -199,15 +433,34 @@ namespace Ryujinx.HLE.HOS.Services.Fs.FileSystemProxy
         public ResultCode GetFileTimeStampRaw(ServiceCtx context)
         {
             ref readonly Path name = ref FileSystemProxyHelper.GetSfPath(context);
+            var str = Encoding.ASCII.GetString(name.Str);
+            if (_isHostFileSystem && str.ToLower().StartsWith("c:/"))
+            {
+                var newPathStr = Encoding.ASCII.GetBytes("/host/" + str.Substring(3));
+                var pathBuffer = new ReadOnlySpan<byte>(newPathStr);
+                ref readonly Path fixName = ref MemoryMarshal.Cast<byte, Path>(pathBuffer)[0];
 
-            Result result = _fileSystem.Get.GetFileTimeStampRaw(out FileTimeStampRaw timestamp, in name);
+                Result result = _fileSystem.Get.GetFileTimeStampRaw(out FileTimeStampRaw timestamp, in fixName);
 
-            context.ResponseData.Write(timestamp.Created);
-            context.ResponseData.Write(timestamp.Modified);
-            context.ResponseData.Write(timestamp.Accessed);
-            context.ResponseData.Write(1L); // Is valid?
+                context.ResponseData.Write(timestamp.Created);
+                context.ResponseData.Write(timestamp.Modified);
+                context.ResponseData.Write(timestamp.Accessed);
+                context.ResponseData.Write(1L); // Is valid?
 
-            return (ResultCode)result.Value;
+                return (ResultCode)result.Value;
+            }
+            else
+            {
+                Result result = _fileSystem.Get.GetFileTimeStampRaw(out FileTimeStampRaw timestamp, in name);
+
+                context.ResponseData.Write(timestamp.Created);
+                context.ResponseData.Write(timestamp.Modified);
+                context.ResponseData.Write(timestamp.Accessed);
+                context.ResponseData.Write(1L); // Is valid?
+
+                return (ResultCode)result.Value;
+            }
+
         }
 
         [CommandCmif(16)]

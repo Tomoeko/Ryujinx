@@ -14,6 +14,9 @@ using System;
 using System.IO;
 using System.Runtime.InteropServices;
 using Path = System.IO.Path;
+using System.Text;
+using System.Linq;
+using System.Security.Cryptography;
 
 namespace Ryujinx.HLE.HOS.Services.Fs.FileSystemProxy
 {
@@ -137,6 +140,111 @@ namespace Ryujinx.HLE.HOS.Services.Fs.FileSystemProxy
                     }
                 }
             }
+
+            foreach (DirectoryEntryEx ticketEntry in nsp.EnumerateEntries("/", "*.tikenc"))
+            {
+                using var ticketFile = new UniqueRef<LibHac.Fs.Fsa.IFile>();
+
+                Result result = nsp.OpenFile(ref ticketFile.Ref, ticketEntry.FullPath.ToU8Span(), OpenMode.Read);
+
+                if (result.IsSuccess())
+                {
+                    var tikEncStream = ticketFile.Get.AsStream();
+                    var tikEncBytes = new byte[tikEncStream.Length];
+                    tikEncStream.Read(tikEncBytes);
+
+                    var ticketBytes = new byte[tikEncBytes.Length - 0x80];
+
+                    if (DecryptTicket(ticketBytes, tikEncBytes))
+                    {
+                        using (var ms = new MemoryStream(ticketBytes, 0x20, ticketBytes.Length - 0x20))
+                        {
+                            Ticket ticket = new(ms);
+                            var titleKey = ticket.GetTitleKey(keySet);
+
+                            if (titleKey != null)
+                            {
+                                keySet.ExternalKeySet.Add(new RightsId(ticket.RightsId), new AccessKey(titleKey));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        public static bool DecryptTicket(byte[] dec, byte[] enc)
+        {
+            // From hayabusa-builds-passwd.pdf
+            // This would ideally be prompted from user
+            var passphrases = new[] {
+                "suikakamakiriringo0827",
+                "mijinkokohakukuri0729",
+                "uguisusunenezumi0630",
+                "inagogomamanbou0602",
+                "butatanukikinmedai0430",
+                "koararakkokonbu0401",
+                "ikakamemendako0225",
+                "@ns0KZ3cGZmo",
+                "Al1p97ThIJ@2",
+            };
+
+            foreach (var passphrase in passphrases)
+            {
+                if (DecryptTicket(dec, enc, Encoding.ASCII.GetBytes(passphrase)))
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        public static bool DecryptTicket(byte[] dec, byte[] enc, byte[] passphrase)
+        {
+            var version = enc[0];
+            var keyType = enc[1];
+            var keySize = BitConverter.ToInt32(enc, 0x18);
+            if (enc[0] != 1)
+                return false;
+            switch (keyType)
+            {
+                case 0: // AES-128
+                    if (keySize != 16)
+                        return false;
+                    break;
+                case 1: // AES-256
+                    if (keySize != 16)
+                        return false;
+                    // aes-256 not implemented
+                    return false;
+                default:
+                    return false;
+            }
+
+            // ??
+            if (enc[0x1c] != 0 || enc[0x1d] != 1)
+                return false;
+
+            // Check length
+            if (BitConverter.ToInt32(enc, 4) != dec.Length)
+                return false;
+
+            if (dec.Length < 32)
+                return false;
+
+            var keyBytes = new byte[0x20];
+            var saltBytes = new byte[BitConverter.ToInt16(enc, 0x1E)];
+            Buffer.BlockCopy(enc, 0x24, saltBytes, 0, saltBytes.Length);
+
+            using (var deriver = new Rfc2898DeriveBytes(passphrase, saltBytes, BitConverter.ToInt32(enc, 0x20), HashAlgorithmName.SHA256))
+            {
+                keyBytes = deriver.GetBytes(0x20);
+            }
+
+            LibHac.Crypto.Aes.DecryptCtr128(enc.AsSpan(0x80, dec.Length), dec, keyBytes.AsSpan(0, 0x10), new byte[0x10]);
+
+            var calcHash = new byte[0x20];
+            LibHac.Crypto.Sha256.GenerateSha256Hash(dec.AsSpan(0x20), calcHash);
+            return Enumerable.SequenceEqual(calcHash, dec.Take(0x20));
         }
 
         public static ref readonly FspPath GetFspPath(ServiceCtx context, int index = 0)

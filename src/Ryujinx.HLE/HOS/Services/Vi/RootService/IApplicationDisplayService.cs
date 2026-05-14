@@ -491,5 +491,35 @@ namespace Ryujinx.HLE.HOS.Services.Vi.RootService
 
             return ResultCode.Success;
         }
+
+        [CommandCmif(5203)]
+        // GetDisplayVsyncEventForDebug(u64) -> handle<copy>
+        public ResultCode GetDisplayVSyncEventForDebug(ServiceCtx context)
+        {
+            ulong displayId = context.RequestData.ReadUInt64();
+
+            if (!_openDisplays.TryGetValue(displayId, out DisplayState displayState))
+            {
+                return ResultCode.InvalidValue;
+            }
+
+            if (displayState.RetrievedEventsCount > 0)
+            {
+                return ResultCode.PermissionDenied;
+            }
+
+            if (_vsyncEventHandle == 0)
+            {
+                if (context.Process.HandleTable.GenerateHandle(context.Device.System.VsyncEvent.ReadableEvent, out _vsyncEventHandle) != Result.Success)
+                {
+                    throw new InvalidOperationException("Out of handles!");
+                }
+            }
+
+            displayState.RetrievedEventsCount++;
+            context.Response.HandleDesc = IpcHandleDesc.MakeCopy(_vsyncEventHandle);
+
+            return ResultCode.Success;
+        }
     }
 }

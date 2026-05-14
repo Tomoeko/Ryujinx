@@ -3,6 +3,8 @@ using Ryujinx.Horizon.Audio;
 using Ryujinx.Horizon.Bcat;
 using Ryujinx.Horizon.Friends;
 using Ryujinx.Horizon.Hshl;
+using Ryujinx.Horizon.Htc;
+using Ryujinx.Horizon.Htcs;
 using Ryujinx.Horizon.Ins;
 using Ryujinx.Horizon.Lbl;
 using Ryujinx.Horizon.LogManager;
@@ -10,6 +12,7 @@ using Ryujinx.Horizon.MmNv;
 using Ryujinx.Horizon.Ngc;
 using Ryujinx.Horizon.Ovln;
 using Ryujinx.Horizon.Prepo;
+using Ryujinx.Horizon.Profiler;
 using Ryujinx.Horizon.Psc;
 using Ryujinx.Horizon.Ptm;
 using Ryujinx.Horizon.Sdk.Arp;
@@ -61,6 +64,9 @@ namespace Ryujinx.Horizon
             RegisterService<TsMain>();
             RegisterService<UsbMain>();
             RegisterService<WlanMain>();
+            RegisterService<HtcMain>();
+            RegisterService<HtcsMain>();
+            RegisterService<ProfilerMain>();
 
             _totalServices = entries.Count;
 

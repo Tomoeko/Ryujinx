@@ -1,6 +1,9 @@
 using Ryujinx.HLE.HOS.Ipc;
+using Ryujinx.HLE.HOS.Kernel.Threading;
 using Ryujinx.HLE.HOS.Services.Bluetooth.BluetoothDriver;
 using Ryujinx.HLE.HOS.Services.Settings;
+using Ryujinx.Horizon.Common;
+using System;
 
 namespace Ryujinx.HLE.HOS.Services.Bluetooth
 {
@@ -17,10 +20,30 @@ namespace Ryujinx.HLE.HOS.Services.Bluetooth
 
             if ((bool)debugMode)
             {
+                if (BluetoothEventManager.RegisterBleDebugEventHandle == 0)
+                {
+                    BluetoothEventManager.RegisterBleDebugEvent = new KEvent(context.Device.System.KernelContext);
+
+                    if (context.Process.HandleTable.GenerateHandle(BluetoothEventManager.RegisterBleDebugEvent.ReadableEvent, out BluetoothEventManager.RegisterBleDebugEventHandle) != Result.Success)
+                    {
+                        throw new InvalidOperationException("Out of handles!");
+                    }
+                }
+
                 context.Response.HandleDesc = IpcHandleDesc.MakeCopy(BluetoothEventManager.RegisterBleDebugEventHandle);
             }
             else
             {
+                if (BluetoothEventManager.RegisterBleEventHandle == 0)
+                {
+                    BluetoothEventManager.RegisterBleEvent = new KEvent(context.Device.System.KernelContext);
+
+                    if (context.Process.HandleTable.GenerateHandle(BluetoothEventManager.RegisterBleEvent.ReadableEvent, out BluetoothEventManager.RegisterBleEventHandle) != Result.Success)
+                    {
+                        throw new InvalidOperationException("Out of handles!");
+                    }
+                }
+
                 context.Response.HandleDesc = IpcHandleDesc.MakeCopy(BluetoothEventManager.RegisterBleEventHandle);
             }
 

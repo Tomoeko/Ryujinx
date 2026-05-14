@@ -11,6 +11,7 @@ using Ryujinx.Horizon.Common;
 using Ryujinx.Memory;
 using System;
 using System.Buffers;
+using System.Diagnostics;
 using System.Threading;
 
 namespace Ryujinx.HLE.HOS.Kernel.SupervisorCall
@@ -19,6 +20,10 @@ namespace Ryujinx.HLE.HOS.Kernel.SupervisorCall
     class Syscall : ISyscallApi
     {
         private readonly KernelContext _context;
+
+        // [DIAG] Boot timer for hang detection
+        private static readonly Stopwatch _diagBootSw = Stopwatch.StartNew();
+        private static volatile bool _diagDumped;
 
         public Syscall(KernelContext context)
         {
@@ -259,7 +264,53 @@ namespace Ryujinx.HLE.HOS.Kernel.SupervisorCall
                 return KernelResult.InvalidHandle;
             }
 
-            return session.SendSyncRequest();
+            KThread curThread = KernelStatic.GetCurrentThread();
+            var sw = Stopwatch.StartNew();
+            Result result = session.SendSyncRequest();
+            sw.Stop();
+            if (sw.ElapsedMilliseconds > 2000)
+            {
+                Logger.Warning?.Print(LogClass.KernelSvc,
+                    $"[DIAG] SendSyncRequest handle=0x{handle:X} thread={curThread.ThreadUid} took {sw.ElapsedMilliseconds}ms result={result}");
+            }
+            // After 5s of boot, log all SendSyncRequest calls for 2s to see which threads are active
+            long bootMs = _diagBootSw.ElapsedMilliseconds;
+            if (bootMs > 5000 && bootMs < 7000)
+            {
+                Logger.Warning?.Print(LogClass.KernelSvc,
+                    $"[DIAG] SendSync t={curThread.ThreadUid} handle=0x{handle:X} elapsed={sw.ElapsedMilliseconds}ms PC=0x{curThread.Context.Pc:X}");
+            }
+            // One-shot: after 8s, dump ALL thread PCs
+            if (bootMs > 8000 && !_diagDumped)
+            {
+                _diagDumped = true;
+                try
+                {
+                    for (int sample = 0; sample < 5; sample++)
+                    {
+                        for (int core = 0; core < 4; core++)
+                        {
+                            try
+                            {
+                                var sched = _context.Schedulers[core];
+                                var thr = sched.CurrentThread;
+                                if (thr != null)
+                                {
+                                    Logger.Warning?.Print(LogClass.KernelSvc,
+                                        $"[DIAG-PC] S{sample} Core{core}: uid={thr.ThreadUid} PC=0x{thr.Context.Pc:X} LR=0x{thr.Context.GetX(30):X}");
+                                }
+                            }
+                            catch { }
+                        }
+                        if (sample < 4) System.Threading.Thread.Sleep(200);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logger.Warning?.Print(LogClass.KernelSvc, $"[DIAG-PC] Error: {ex.Message}");
+                }
+            }
+            return result;
         }
 
         [Svc(0x22)]
@@ -2942,8 +2993,22 @@ namespace Ryujinx.HLE.HOS.Kernel.SupervisorCall
             }
 
             KProcess currentProcess = KernelStatic.GetCurrentProcess();
-
-            return currentProcess.AddressArbiter.ArbitrateLock(ownerHandle, mutexAddress, requesterHandle);
+            KThread curThread = KernelStatic.GetCurrentThread();
+            var sw = Stopwatch.StartNew();
+            Result result = currentProcess.AddressArbiter.ArbitrateLock(ownerHandle, mutexAddress, requesterHandle);
+            sw.Stop();
+            if (sw.ElapsedMilliseconds > 2000)
+            {
+                Logger.Warning?.Print(LogClass.KernelSvc,
+                    $"[DIAG] ArbitrateLock mutex=0x{mutexAddress:X} owner=0x{ownerHandle:X} thread={curThread.ThreadUid} took {sw.ElapsedMilliseconds}ms result={result}");
+            }
+            long bootMs2 = _diagBootSw.ElapsedMilliseconds;
+            if (bootMs2 > 5000 && bootMs2 < 7000)
+            {
+                Logger.Warning?.Print(LogClass.KernelSvc,
+                    $"[DIAG] ArbLock t={curThread.ThreadUid} mutex=0x{mutexAddress:X} elapsed={sw.ElapsedMilliseconds}ms");
+            }
+            return result;
         }
 
         [Svc(0x1b)]
@@ -2982,17 +3047,26 @@ namespace Ryujinx.HLE.HOS.Kernel.SupervisorCall
             }
 
             KProcess currentProcess = KernelStatic.GetCurrentProcess();
+            KThread curThread = KernelStatic.GetCurrentThread();
 
             if (timeout > 0)
             {
                 timeout += KTimeManager.DefaultTimeIncrementNanoseconds;
             }
 
-            return currentProcess.AddressArbiter.WaitProcessWideKeyAtomic(
+            var sw = Stopwatch.StartNew();
+            Result result = currentProcess.AddressArbiter.WaitProcessWideKeyAtomic(
                 mutexAddress,
                 condVarAddress,
                 handle,
                 timeout);
+            sw.Stop();
+            if (sw.ElapsedMilliseconds > 2000)
+            {
+                Logger.Warning?.Print(LogClass.KernelSvc,
+                    $"[DIAG] WaitProcessWideKeyAtomic mutex=0x{mutexAddress:X} condvar=0x{condVarAddress:X} thread={curThread.ThreadUid} timeout={timeout} took {sw.ElapsedMilliseconds}ms result={result}");
+            }
+            return result;
         }
 
         [Svc(0x1d)]
@@ -3019,13 +3093,15 @@ namespace Ryujinx.HLE.HOS.Kernel.SupervisorCall
             }
 
             KProcess currentProcess = KernelStatic.GetCurrentProcess();
+            KThread curThread = KernelStatic.GetCurrentThread();
 
             if (timeout > 0)
             {
                 timeout += KTimeManager.DefaultTimeIncrementNanoseconds;
             }
 
-            return type switch
+            var sw = Stopwatch.StartNew();
+            Result result = type switch
             {
                 ArbitrationType.WaitIfLessThan
                     => currentProcess.AddressArbiter.WaitForAddressIfLessThan(address, value, false, timeout),
@@ -3035,6 +3111,13 @@ namespace Ryujinx.HLE.HOS.Kernel.SupervisorCall
                     => currentProcess.AddressArbiter.WaitForAddressIfEqual(address, value, timeout),
                 _ => KernelResult.InvalidEnumValue,
             };
+            sw.Stop();
+            if (sw.ElapsedMilliseconds > 2000)
+            {
+                Logger.Warning?.Print(LogClass.KernelSvc,
+                    $"[DIAG] WaitForAddress addr=0x{address:X} type={type} val={value} thread={curThread.ThreadUid} timeout={timeout} took {sw.ElapsedMilliseconds}ms result={result}");
+            }
+            return result;
         }
 
         [Svc(0x35)]

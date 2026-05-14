@@ -19,6 +19,9 @@ namespace Ryujinx.HLE.HOS.Services.BluetoothManager.BtmUser
         public KEvent _bleMtuConfigEvent;
         public int _bleMtuConfigEventHandle;
 
+        public KEvent _bleGattOperationEvent;
+        public int _bleGattOperationEventHandle;
+
         public IBtmUserCore() { }
 
         [CommandCmif(0)] // 5.0.0+

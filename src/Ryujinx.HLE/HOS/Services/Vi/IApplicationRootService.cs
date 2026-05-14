@@ -23,5 +23,21 @@ namespace Ryujinx.HLE.HOS.Services.Vi
 
             return ResultCode.Success;
         }
+
+        [CommandCmif(1)]
+        // GetDisplayServiceWithProxyNameExchange(u32) -> object<nn::visrv::sf::IApplicationDisplayService>
+        public ResultCode GetDisplayServiceWithProxyNameExchange(ServiceCtx context)
+        {
+            ViServiceType serviceType = (ViServiceType)context.RequestData.ReadInt32();
+
+            if (serviceType != ViServiceType.Application)
+            {
+                return ResultCode.PermissionDenied;
+            }
+
+            MakeObject(context, new IApplicationDisplayService(serviceType));
+
+            return ResultCode.Success;
+        }
     }
 }

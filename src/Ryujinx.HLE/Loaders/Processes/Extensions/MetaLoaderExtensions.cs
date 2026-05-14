@@ -55,6 +55,29 @@ namespace Ryujinx.HLE.Loaders.Processes.Extensions
 
             npdmFile.Get.Read(out _, 0, npdmBuffer).ThrowIfFailure();
 
+            // Patch NPDM to have full filesystem permission
+            // This fixes proto ability to mount host filesystem
+            var acidOffset = BitConverter.ToInt32(npdmBuffer[0x78..0x7C]);
+            var aciOffset = BitConverter.ToInt32(npdmBuffer[0x70..0x74]);
+            if (BitConverter.ToUInt32(npdmBuffer[(acidOffset+0x200)..(acidOffset+0x204)]) == 0x44494341)
+            {
+                var o = BitConverter.ToInt32(npdmBuffer[(acidOffset + 0x220)..(acidOffset + 0x224)]);
+                if (npdmBuffer[acidOffset+o] == 1)
+                {
+                    for (var i = 0; i < 8; ++i)
+                        npdmBuffer[acidOffset + o + 4 + i] = 0xFF;
+                }
+            }
+            if (BitConverter.ToUInt32(npdmBuffer[(aciOffset)..(aciOffset + 0x4)]) == 0x30494341)
+            {
+                var o = BitConverter.ToInt32(npdmBuffer[(aciOffset + 0x20)..(aciOffset + 0x24)]);
+                if (npdmBuffer[aciOffset + o] == 1)
+                {
+                    for (var i = 0; i < 8; ++i)
+                        npdmBuffer[aciOffset + o + 4 + i] = 0xFF;
+                }
+            }
+
             metaLoader.Load(npdmBuffer).ThrowIfFailure();
         }
     }

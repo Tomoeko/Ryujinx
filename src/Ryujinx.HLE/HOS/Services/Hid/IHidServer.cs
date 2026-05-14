@@ -1801,6 +1801,15 @@ namespace Ryujinx.HLE.HOS.Services.Hid
             return ResultCode.Success;
         }
 
+        [CommandCmif(527)] // 8.0.0+
+        // EnablePalmaBoostMode(...)
+        public ResultCode EnablePalmaBoostMode(ServiceCtx context)
+        {
+            // NOTE: Stubbed in system module.
+
+            return ResultCode.Success;
+        }
+
         [CommandCmif(1000)]
         // SetNpadCommunicationMode(long CommunicationMode, nn::applet::AppletResourceUserId)
         public ResultCode SetNpadCommunicationMode(ServiceCtx context)

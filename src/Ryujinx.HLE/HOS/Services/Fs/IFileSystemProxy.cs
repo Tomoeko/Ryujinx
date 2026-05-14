@@ -15,6 +15,8 @@ using Ryujinx.HLE.HOS.Services.Fs.FileSystemProxy;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Runtime.InteropServices;
+using System.Text;
 using static Ryujinx.HLE.Utilities.StringUtils;
 using GameCardHandle = System.UInt32;
 using IFileSystem = LibHac.FsSrv.Sf.IFileSystem;
@@ -155,6 +157,32 @@ namespace Ryujinx.HLE.HOS.Services.Fs
         public ResultCode InvalidateBisCache(ServiceCtx context)
         {
             return (ResultCode)_baseFileSystemProxy.Get.InvalidateBisCache().Value;
+        }
+
+        [CommandCmif(17)]
+        // OpenHostFileSystem() -> object<nn::fssrv::sf::IFileSystem>
+        public ResultCode OpenHostFileSystem(ServiceCtx context)
+        {
+            ref readonly var path = ref FileSystemProxyHelper.GetFspPath(context);
+
+            using var fileSystem = new SharedRef<IFileSystem>();
+
+            //Result result = _baseFileSystemProxy.Get.OpenHostFileSystem(ref fileSystem.Ref, in path);
+            Result result = _baseFileSystemProxy.Get.OpenSdCardFileSystem(ref fileSystem.Ref);
+            if (result.IsFailure())
+            {
+                return (ResultCode)result.Value;
+            }
+
+            var hostDir = new byte[0x301];
+            Encoding.ASCII.GetBytes("/host\0").CopyTo(hostDir, 0);
+            var pathBuffer = new ReadOnlySpan<byte>(hostDir);
+            ref readonly var hostPath = ref MemoryMarshal.Cast<byte, LibHac.FsSrv.Sf.Path>(pathBuffer)[0];
+            fileSystem.Ref.Get.CreateDirectory(in hostPath);
+
+            MakeObject(context, new FileSystemProxy.IFileSystem(ref fileSystem.Ref, true));
+
+            return ResultCode.Success;
         }
 
         [CommandCmif(18)]
@@ -350,6 +378,32 @@ namespace Ryujinx.HLE.HOS.Services.Fs
             HashSalt hashSalt = context.RequestData.ReadStruct<HashSalt>();
 
             return (ResultCode)_baseFileSystemProxy.Get.CreateSaveDataFileSystemWithHashSalt(in attribute, in creationInfo, in metaCreateInfo, in hashSalt).Value;
+        }
+
+        [CommandCmif(36)]
+        // OpenHostFileSystemWith() -> object<nn::fssrv::sf::IFileSystem>
+        public ResultCode OpenHostFileSystemWithOption(ServiceCtx context)
+        {
+            ref readonly var path = ref FileSystemProxyHelper.GetFspPath(context);
+
+            using var fileSystem = new SharedRef<IFileSystem>();
+
+            //Result result = _baseFileSystemProxy.Get.OpenHostFileSystemWithOption(ref fileSystem.Ref, in path, new MountHostOption());
+            Result result = _baseFileSystemProxy.Get.OpenSdCardFileSystem(ref fileSystem.Ref);
+            if (result.IsFailure())
+            {
+                return (ResultCode)result.Value;
+            }
+
+            var hostDir = new byte[0x301];
+            Encoding.ASCII.GetBytes("/host\0").CopyTo(hostDir, 0);
+            var pathBuffer = new ReadOnlySpan<byte>(hostDir);
+            ref readonly var hostPath = ref MemoryMarshal.Cast<byte, LibHac.FsSrv.Sf.Path>(pathBuffer)[0];
+            fileSystem.Ref.Get.CreateDirectory(in hostPath);
+
+            MakeObject(context, new FileSystemProxy.IFileSystem(ref fileSystem.Ref, true));
+
+            return ResultCode.Success;
         }
 
         [CommandCmif(37)] // 14.0.0+
