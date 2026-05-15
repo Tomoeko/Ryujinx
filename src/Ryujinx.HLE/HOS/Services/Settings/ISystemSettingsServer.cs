@@ -404,7 +404,7 @@ namespace Ryujinx.HLE.HOS.Services.Settings
         // GetDebugModeFlag() -> bool
         public ResultCode GetDebugModeFlag(ServiceCtx context)
         {
-            context.ResponseData.Write(false);
+            context.ResponseData.Write(true);
 
             Logger.Stub?.PrintStub(LogClass.ServiceSet);
 

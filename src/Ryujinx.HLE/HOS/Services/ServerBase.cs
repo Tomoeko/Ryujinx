@@ -392,6 +392,11 @@ namespace Ryujinx.HLE.HOS.Services
 
                 GetSessionObj(serverSessionHandle).CallCmifMethod(context);
 
+                if (context.SuppressReply)
+                {
+                    shouldReply = false;
+                }
+
                 response.RawData = _responseDataStream.ToArray();
             }
             else if (request.Type == IpcMessageType.CmifControl ||

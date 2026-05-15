@@ -1,12 +1,11 @@
 using Ryujinx.Common.Logging;
-using System.Threading;
 
 namespace Ryujinx.HLE.HOS.Services.Htcs
 {
     class ISocket : IpcService
     {
-        // On real hardware, socket operations work normally.
-        // Only Accept/Recv block waiting for a host connection.
+        // ISocket sub-service for HTCS. Accept/Recv use SuppressReply to block
+        // the guest thread at the kernel level without holding the HLE dispatch thread.
 
         public ISocket() { }
 
@@ -30,7 +29,6 @@ namespace Ryujinx.HLE.HOS.Services.Htcs
 
             Logger.Stub?.PrintStub(LogClass.ServiceHtcs);
 
-            // Connect blocks until peer is available; return disconnected
             context.ResponseData.Write(-1);  // errorCode = disconnected
             context.ResponseData.Write(-1);  // result
 
@@ -73,14 +71,8 @@ namespace Ryujinx.HLE.HOS.Services.Htcs
         {
             Logger.Stub?.PrintStub(LogClass.ServiceHtcs);
 
-            // On real hardware, Accept blocks forever waiting for a host connection.
-            // The hostio thread parks here until a Target Manager connects.
-            Thread.Sleep(Timeout.Infinite);
-
-            // Unreachable
-            context.ResponseData.Write(-1);           // errorCode
-            context.ResponseData.Write(new byte[68]); // SockAddrHtcs
-            MakeObject(context, new ISocket());
+            // Block the guest thread at the kernel level — never reply
+            context.SuppressReply = true;
 
             return ResultCode.Success;
         }
@@ -93,12 +85,8 @@ namespace Ryujinx.HLE.HOS.Services.Htcs
 
             Logger.Stub?.PrintStub(LogClass.ServiceHtcs, new { flags });
 
-            // Recv blocks waiting for data from host
-            Thread.Sleep(Timeout.Infinite);
-
-            context.ResponseData.Write(-1);  // errorCode
-            context.ResponseData.Write(0);   // padding
-            context.ResponseData.Write(0L);  // receivedSize
+            // Block the guest thread at the kernel level — never reply
+            context.SuppressReply = true;
 
             return ResultCode.Success;
         }

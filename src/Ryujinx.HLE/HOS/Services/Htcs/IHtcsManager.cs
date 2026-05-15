@@ -1,6 +1,6 @@
 using Ryujinx.Common.Logging;
 using Ryujinx.HLE.HOS.Ipc;
-using System.Threading;
+using Ryujinx.HLE.HOS.Kernel.Threading;
 
 namespace Ryujinx.HLE.HOS.Services.Htcs
 {
@@ -8,13 +8,14 @@ namespace Ryujinx.HLE.HOS.Services.Htcs
     class IHtcsManager : IpcService
     {
         // On real devkit hardware without a host PC connected:
-        // - Socket/Bind/Listen succeed normally (the socket layer works)
-        // - Accept blocks forever (waiting for a host connection)
-        // - CreateSocket succeeds and returns a valid ISocket
+        // - Socket/Bind/Listen succeed normally
+        // - Accept blocks the calling guest thread forever (it never returns)
+        // - The server thread is NOT blocked — only the client thread waits
         //
-        // We must replicate this behavior. Returning errors from Socket/Bind/Listen
-        // causes the game's hostio thread to take error paths that affect shared
-        // state (e.g., the DebugMenu Lua item buffer overflows).
+        // We replicate this by setting SuppressReply on Accept/Recv calls.
+        // This prevents the ServerBase from sending an IPC reply, so the guest
+        // thread stays blocked in SendSyncRequest at the kernel level. The HLE
+        // dispatch thread continues processing other service requests normally.
 
         private int _nextDescriptor = 1;
 
@@ -24,7 +25,7 @@ namespace Ryujinx.HLE.HOS.Services.Htcs
         // Socket(out s32 errorCode, out s32 socketDescriptor)
         public ResultCode Socket(ServiceCtx context)
         {
-            int descriptor = Interlocked.Increment(ref _nextDescriptor);
+            int descriptor = _nextDescriptor++;
 
             Logger.Stub?.PrintStub(LogClass.ServiceHtcs, new { descriptor });
 
@@ -57,7 +58,7 @@ namespace Ryujinx.HLE.HOS.Services.Htcs
 
             Logger.Stub?.PrintStub(LogClass.ServiceHtcs, new { descriptor });
 
-            // Connect would block on real hw waiting for peer; return disconnected
+            // Connect returns disconnected — no host to connect to
             context.ResponseData.Write(-1); // errorCode = disconnected
             context.ResponseData.Write(-1); // result
 
@@ -73,7 +74,7 @@ namespace Ryujinx.HLE.HOS.Services.Htcs
 
             Logger.Stub?.PrintStub(LogClass.ServiceHtcs, new { descriptor });
 
-            // Bind always succeeds on real hardware
+            // Bind succeeds on real hardware
             context.ResponseData.Write(0);  // errorCode = success
             context.ResponseData.Write(0);  // result = success
 
@@ -89,7 +90,7 @@ namespace Ryujinx.HLE.HOS.Services.Htcs
 
             Logger.Stub?.PrintStub(LogClass.ServiceHtcs, new { descriptor, backlogCount });
 
-            // Listen always succeeds on real hardware
+            // Listen succeeds on real hardware
             context.ResponseData.Write(0);  // errorCode = success
             context.ResponseData.Write(0);  // result = success
 
@@ -104,16 +105,10 @@ namespace Ryujinx.HLE.HOS.Services.Htcs
 
             Logger.Stub?.PrintStub(LogClass.ServiceHtcs, new { descriptor });
 
-            // On real hardware, Accept blocks forever waiting for a host connection.
-            // We simulate this by sleeping indefinitely. The guest thread will be
-            // parked here, matching real devkit behavior when no host is connected.
-            // The thread will be cleaned up when the process terminates.
-            Thread.Sleep(Timeout.Infinite);
-
-            // Unreachable, but needed for compilation
-            context.ResponseData.Write(new byte[68]); // SockAddrHtcs
-            context.ResponseData.Write(-1);            // errorCode
-            context.ResponseData.Write(-1);            // result
+            // Suppress the IPC reply. The guest thread will remain blocked in
+            // SendSyncRequest at the kernel level — exactly like real hardware
+            // when no host PC is connected. The HLE dispatch thread is NOT blocked.
+            context.SuppressReply = true;
 
             return ResultCode.Success;
         }
@@ -127,12 +122,8 @@ namespace Ryujinx.HLE.HOS.Services.Htcs
 
             Logger.Stub?.PrintStub(LogClass.ServiceHtcs, new { descriptor, flags });
 
-            // Block like Accept — recv on a hostio socket blocks until data arrives
-            Thread.Sleep(Timeout.Infinite);
-
-            context.ResponseData.Write(-1);  // errorCode
-            context.ResponseData.Write(0);   // padding
-            context.ResponseData.Write(0L);  // receivedSize
+            // Recv also blocks forever when no host is connected
+            context.SuppressReply = true;
 
             return ResultCode.Success;
         }

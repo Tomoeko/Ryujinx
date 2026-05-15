@@ -17,6 +17,15 @@ namespace Ryujinx.HLE.HOS
         public BinaryReader RequestData { get; }
         public BinaryWriter ResponseData { get; }
 
+        /// <summary>
+        /// When set to true by an IPC handler, the server will not send a reply
+        /// to the guest thread. This causes the guest thread to remain blocked in
+        /// SendSyncRequest at the kernel level, without stalling the HLE dispatch
+        /// thread. Use this for IPC calls that should block indefinitely (e.g.,
+        /// HTCS Accept waiting for a host connection).
+        /// </summary>
+        public bool SuppressReply { get; set; }
+
         public ServiceCtx(
             Switch device,
             KProcess process,

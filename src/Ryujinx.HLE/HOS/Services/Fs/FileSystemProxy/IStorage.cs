@@ -1,6 +1,7 @@
 using LibHac;
 using LibHac.Common;
 using LibHac.Sf;
+using Ryujinx.Common.Logging;
 
 namespace Ryujinx.HLE.HOS.Services.Fs.FileSystemProxy
 {
@@ -29,6 +30,13 @@ namespace Ryujinx.HLE.HOS.Services.Fs.FileSystemProxy
                 if (size > bufferLen)
                 {
                     size = bufferLen;
+                }
+
+                // Diagnostic: log reads to romfs metadata region (>2GB or header at offset 0)
+                if (offset == 0 || offset >= 0x80000000UL)
+                {
+                    Logger.Warning?.Print(LogClass.ServiceFs,
+                        $"IStorage.Read: offset=0x{offset:X} size=0x{size:X} bufAddr=0x{bufferAddress:X} bufLen=0x{bufferLen:X}");
                 }
 
                 using var region = context.Memory.GetWritableRegion(bufferAddress, (int)bufferLen, true);
