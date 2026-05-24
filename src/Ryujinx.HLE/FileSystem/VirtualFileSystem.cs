@@ -355,36 +355,6 @@ namespace Ryujinx.HLE.FileSystem
                     }
                 }
             }
-
-            foreach (DirectoryEntryEx ticketEntry in fs.EnumerateEntries("/", "*.tikenc"))
-            {
-                using var ticketFile = new UniqueRef<IFile>();
-
-                Result result = fs.OpenFile(ref ticketFile.Ref, ticketEntry.FullPath.ToU8Span(), OpenMode.Read);
-
-                if (result.IsSuccess())
-                {
-                    var tikEncStream = ticketFile.Get.AsStream();
-                    var tikEncBytes = new byte[tikEncStream.Length];
-                    tikEncStream.Read(tikEncBytes);
-
-                    var ticketBytes = new byte[tikEncBytes.Length - 0x80];
-
-                    if (HOS.Services.Fs.FileSystemProxy.FileSystemProxyHelper.DecryptTicket(ticketBytes, tikEncBytes))
-                    {
-                        using (var ms = new MemoryStream(ticketBytes, 0x20, ticketBytes.Length - 0x20))
-                        {
-                            Ticket ticket = new(ms);
-                            var titleKey = ticket.GetTitleKey(KeySet);
-
-                            if (titleKey != null)
-                            {
-                                KeySet.ExternalKeySet.Add(new RightsId(ticket.RightsId), new AccessKey(titleKey));
-                            }
-                        }
-                    }
-                }
-            }
         }
 
         // Save data created before we supported extra data in directory save data will not work properly if

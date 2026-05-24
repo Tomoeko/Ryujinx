@@ -197,22 +197,7 @@ namespace Ryujinx.Cpu.AppleHv
             switch (ec)
             {
                 case ExceptionClass.DataAbortLowerEl:
-                    try
-                    {
-                        DataAbort(memoryManager.Tracking, vcpuHandle, (uint)esr);
-                    }
-                    catch (Exception ex) when (ex is Ryujinx.Memory.InvalidMemoryRegionException || ex.Message.Contains("invalid memory"))
-                    {
-                        // Guest accessed invalid memory (e.g., due to corrupted pointers
-                        // from patched-out dev asserts). Skip the faulting instruction
-                        // instead of crashing the emulator.
-                        bool isIl32 = ((uint)esr & (1u << 25)) != 0;
-                        ulong skipSize = isIl32 ? 4UL : 2UL;
-                        Ryujinx.Common.Logging.Logger.Warning?.Print(
-                            Ryujinx.Common.Logging.LogClass.Cpu,
-                            $"DataAbortLowerEl: invalid memory access at ELR=0x{elr:X}, skipping {skipSize}B instruction");
-                        HvApi.hv_vcpu_set_sys_reg(vcpuHandle, HvSysReg.ELR_EL1, elr + skipSize).ThrowOnError();
-                    }
+                    DataAbort(memoryManager.Tracking, vcpuHandle, (uint)esr);
                     break;
                 case ExceptionClass.TrappedMsrMrsSystem:
                     InstructionTrap((uint)esr);
@@ -223,17 +208,6 @@ namespace Ryujinx.Cpu.AppleHv
                     ushort id = (ushort)esr;
                     SupervisorCallHandler(elr - 4UL, id);
                     vcpu = RentFromPool(memoryManager.AddressSpace, vcpu);
-                    break;
-                case ExceptionClass.InstructionAbortLowerEl:
-                    // Guest tried to execute code at an unmapped address.
-                    // This happens when dev-build asserts are patched out,
-                    // causing null function pointer calls. Recover by
-                    // redirecting to LR (treat the bad call as a no-op).
-                    HvApi.hv_vcpu_get_reg(vcpuHandle, HvReg.LR, out ulong recoveryLr).ThrowOnError();
-                    Ryujinx.Common.Logging.Logger.Warning?.Print(
-                        Ryujinx.Common.Logging.LogClass.Cpu,
-                        $"InstructionAbortLowerEl at ELR=0x{elr:X}, recovering to LR=0x{recoveryLr:X}");
-                    HvApi.hv_vcpu_set_sys_reg(vcpuHandle, HvSysReg.ELR_EL1, recoveryLr).ThrowOnError();
                     break;
                 default:
                     throw new Exception($"Unhandled guest exception {ec}.");

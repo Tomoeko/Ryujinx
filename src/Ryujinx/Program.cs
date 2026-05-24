@@ -121,9 +121,9 @@ namespace Ryujinx.Ava
             DriverUtilities.InitDriverConfig(ConfigurationState.Instance.Graphics.BackendThreading == BackendThreading.Off);
 
             // Check if keys exists.
-            if (!File.Exists(Path.Combine(AppDataManager.KeysDirPath, "dev.keys")))
+            if (!File.Exists(Path.Combine(AppDataManager.KeysDirPath, "prod.keys")) && !File.Exists(Path.Combine(AppDataManager.KeysDirPath, "dev.keys")))
             {
-                if (!(AppDataManager.Mode == AppDataManager.LaunchMode.UserProfile && File.Exists(Path.Combine(AppDataManager.KeysDirPathUser, "dev.keys"))))
+                if (!(AppDataManager.Mode == AppDataManager.LaunchMode.UserProfile && (File.Exists(Path.Combine(AppDataManager.KeysDirPathUser, "prod.keys")) || File.Exists(Path.Combine(AppDataManager.KeysDirPathUser, "dev.keys")))))
                 {
                     MainWindow.ShowKeyErrorOnLoad = true;
                 }

@@ -643,15 +643,7 @@ namespace Ryujinx.HLE.FileSystem
                         {
                             IFileSystem innerFs = nca.OpenFileSystem(sectionType, IntegrityCheckLevel.None);
 
-                            // Debug: enumerate ALL files inside this section
                             var allFiles = innerFs.EnumerateEntries("/", "*").ToList();
-                            Logger.Info?.Print(LogClass.ServiceFs,
-                                $"Section {sectionType} of {entry.Name}: {allFiles.Count} total entries");
-                            foreach (var innerEntry in allFiles.Take(20))
-                            {
-                                Logger.Debug?.Print(LogClass.ServiceFs,
-                                    $"  -> {innerEntry.FullPath} (Size={innerEntry.Size}, Dir={innerEntry.Type == LibHac.Fs.DirectoryEntryType.Directory})");
-                            }
 
                             // Check for .initimg files (dev firmware init images containing NCAs as PFS0)
                             var initImgEntries = allFiles.Where(e => e.Name.EndsWith(".initimg")).ToList();

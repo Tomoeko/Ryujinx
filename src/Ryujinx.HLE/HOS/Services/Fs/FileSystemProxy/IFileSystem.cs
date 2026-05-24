@@ -301,12 +301,6 @@ namespace Ryujinx.HLE.HOS.Services.Fs.FileSystemProxy
         {
             uint mode = context.RequestData.ReadUInt32();
 
-            // Diagnostic: log directory open with mode flags
-            // Mode: 1=DirOnly, 2=FileOnly, 3=All
-            ref readonly Path nameForLog = ref FileSystemProxyHelper.GetSfPath(context);
-            var pathStr = Encoding.ASCII.GetString(nameForLog.Str).TrimEnd('\0');
-            Logger.Warning?.Print(LogClass.ServiceFs, $"OpenDirectory path=\"{pathStr}\" mode={mode} (Dir={((mode & 1) != 0)}, File={((mode & 2) != 0)})");
-
             ref readonly Path name = ref FileSystemProxyHelper.GetSfPath(context);
             using var dir = new SharedRef<LibHac.FsSrv.Sf.IDirectory>();
             var str = Encoding.ASCII.GetString(name.Str);

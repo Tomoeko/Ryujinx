@@ -232,8 +232,8 @@ namespace Ryujinx
             Application.Init();
 
             // Check if keys exists.
-            bool hasSystemProdKeys = File.Exists(Path.Combine(AppDataManager.KeysDirPath, "dev.keys"));
-            bool hasCommonProdKeys = AppDataManager.Mode == AppDataManager.LaunchMode.UserProfile && File.Exists(Path.Combine(AppDataManager.KeysDirPathUser, "dev.keys"));
+            bool hasSystemProdKeys = File.Exists(Path.Combine(AppDataManager.KeysDirPath, "prod.keys")) || File.Exists(Path.Combine(AppDataManager.KeysDirPath, "dev.keys"));
+            bool hasCommonProdKeys = AppDataManager.Mode == AppDataManager.LaunchMode.UserProfile && (File.Exists(Path.Combine(AppDataManager.KeysDirPathUser, "prod.keys")) || File.Exists(Path.Combine(AppDataManager.KeysDirPathUser, "dev.keys")));
             if (!hasSystemProdKeys && !hasCommonProdKeys)
             {
                 UserErrorDialog.CreateUserErrorDialog(UserError.NoKeys);
